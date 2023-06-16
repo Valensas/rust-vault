@@ -1,0 +1,23 @@
+[package]
+name = "mpc-vault"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = "1.0.164"
+serde_json = "1.0.96"
+vaultrs = "0.7.0"
+vaultrs-login = "0.1.7"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.11.18", default-features = false, features = ["json", "trust-dns", "rustls-tls"] }
+rustify = { version = "0.5.3", default-features = false }
+log = "0.4"
+chrono = "0.4.26"
+futures = { version = "0.3", features = ["compat"] }
+mpc-utils = {git="https://github.com/can-arikan/my-rust-util.git"}
+
+[dependencies.rocket]
+version = "=0.5.0-rc.3"
+features = ["json"]
