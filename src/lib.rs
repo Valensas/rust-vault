@@ -12,11 +12,9 @@
 ///
 /// ```rust
 /// use std::time::Duration;
-/// use mpc_vault::vault::vault_params::VaultParams;
-/// use mpc_vault::vault::vault_service::{HealthCheckData, VaultService};
+/// use valensas_vault::vault::vault_service::{HealthCheckData, VaultService, VaultParams};
 ///
 /// async fn main() {
-///     // Create Vault parameters with authentication method and token
 ///     let vault_params = VaultParams {
 ///         vault_auth_method: "token".to_string(),
 ///         vault_token: Option::from("my-auth-token".to_string()),
@@ -48,10 +46,8 @@
 ///
 /// ```rust
 /// use std::time::Duration;
-/// use mpc_vault::vault::vault_params::VaultParams;
-/// use mpc_vault::vault::vault_service::{tokenRenewalCycle, tokenRenewalAbortion, VaultService};
+/// use valensas_vault::vault::vault_service::{tokenRenewalCycle, tokenRenewalAbortion, VaultService, VaultParams};
 ///
-/// // Create Vault parameters with authentication method and token
 /// let vault_params = VaultParams {
 ///     vault_auth_method: "token".to_string(),
 ///     vault_token: Option::from("my-auth-token".to_string()),
