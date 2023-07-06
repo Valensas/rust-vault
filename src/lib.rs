@@ -9,36 +9,40 @@
 /// ```
 ///
 /// ## Usage
+/// You should define following environment variables to configure Vault.
 ///
+/// VAULT_ADDR: default "http://localhost:8200"
+/// VAULT_MOUNT_PATH: default secret
+/// VAULT_CLIENT_TIMEOUT: default 5s
+/// VAULT_HEALTH_CHECK_FILE: default healthcheck_file
+/// VAULT_RETRY_COUNT: default 5
+///
+/// For Kubernetes Configuration:
+/// VAULT_AUTH_METHOD: Kubernetes
+/// VAULT_KUBERNETES_ROLE_NAME: default client
+/// VAULT_KUBERNETES_TOKEN_PATH: default /var/run/secrets/kubernetes.io/serviceaccount/token
+/// For Token Configuration:
+/// VAULT_AUTH_METHOD: Token
+/// VAULT_TOKEN: token to authenticate vault
 /// ```rust
 /// use std::time::Duration;
 /// use valensas_vault::vault::vault_service::{HealthCheckData, VaultService, VaultParams};
 ///
 /// async fn main() {
-///     let vault_params = VaultParams {
-///         vault_auth_method: "token".to_string(),
-///         vault_token: Option::from("my-auth-token".to_string()),
-///         vault_role_name: None,
-///         vault_token_path: None,
-///         vault_address: "http://localhost:8200".to_string(),
-///         vault_mount_path: "secret".to_string(),
-///         vault_client_timeout: Duration::from_secs(5),
-///         vault_healthcheck_file_path: "healthcheck_file".to_string(),
-///         vault_retry_count: 5
-///     };
-///
 ///     // Initialize the Vault service
-///     let vault_service = VaultService::new(vault_params).await.unwrap();
-///
-///     // Read a secret from Vault
-///     let secret_value = vault_service.clone().read::<HealthCheckData>(vault_params.vault_healthcheck_file_path.as_str()).await;
-///     println!("Secret value: {}", secret_value.unwrap());
+///     let vault_service = VaultService::new().await.unwrap();
 ///
 ///     // Write a secret to Vault
 ///     let secret_key = "my-new-secret-key";
-///     let secret_value = "my-new-secret-value";
+///     let secret_value = TestData {
+///         name: "data".to_string(),
+///     };
 ///     vault_service.insert(secret_key, secret_value).await;
 ///     println!("Secret inserted successfully.");
+///
+///     // Read a secret from Vault
+///     let value = vault_service.read::<TestData>(secret_key).await.unwrap();
+///     println!("Secret read successfully.");
 /// }
 /// ```
 ///
@@ -46,22 +50,9 @@
 ///
 /// ```rust
 /// use std::time::Duration;
-/// use valensas_vault::vault::vault_service::{tokenRenewalCycle, tokenRenewalAbortion, VaultService, VaultParams};
-///
-/// let vault_params = VaultParams {
-///     vault_auth_method: "token".to_string(),
-///     vault_token: Option::from("my-auth-token".to_string()),
-///     vault_role_name: None,
-///     vault_token_path: None,
-///     vault_address: "http://localhost:8200".to_string(),
-///     vault_mount_path: "secret".to_string(),
-///     vault_client_timeout: Duration::from_secs(5),
-///     vault_healthcheck_file_path: "healthcheck_file".to_string(),
-///     vault_retry_count: 5
-/// };
-///
+/// use valensas_vault::vault::vault_service::{tokenRenewalCycle, tokenRenewalAbortion, VaultService};
 /// // Initialize the Vault service
-/// let mut vault_service = VaultService::new(vault_params);
+/// let mut vault_service = VaultService::new();
 ///
 /// // Start token renewal in the background
 /// let token_renewal_handle = tokenRenewalCycle(vault_service);
