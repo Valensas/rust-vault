@@ -12,8 +12,10 @@ use vaultrs::{
     kv2,
 };
 use crate::errors::error::VaultError;
+use crate::vault::authenticate_vault::authenticate_vault_trait::AuthenticateVault;
+use crate::vault::authenticate_vault::kubernetes::AuthenticateKubernetesVault;
+use crate::vault::authenticate_vault::token::AuthenticateTokenVault;
 use crate::vault::vault_config::{AuthMethod, VaultConfig};
-use crate::vault::authenticate_vault::{AuthenticateTokenVault, AuthenticateKubernetesVault, AuthenticateVault};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct HealthCheckData {

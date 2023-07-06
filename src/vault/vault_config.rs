@@ -37,7 +37,7 @@ pub struct VaultConfig {
 
 impl VaultConfig {
     pub fn loadEnv() -> VaultConfig {
-        let auth_method: AuthMethod = Util::loadOrDefault("VAULT_AUTH_METHOD", "KUBERNETES")
+        let auth_method: AuthMethod = Util::loadOrDefault("VAULT_AUTH_METHOD", "Token")
             .parse::<AuthMethod>()
             .expect("Env variable: VAULT_AUTH_METHOD is not valid. Possible values: Token, Kubernetes");
 
