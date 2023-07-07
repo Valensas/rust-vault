@@ -16,8 +16,8 @@ rustify = { version = "0.5.3", default-features = false }
 log = "0.4"
 chrono = "0.4.26"
 futures = { version = "0.3", features = ["compat"] }
-mpc-utils = {git="https://github.com/can-arikan/my-rust-util.git"}
 async-trait = "0.1.70"
+duration-string = "0.3.0"
 
 [dependencies.rocket]
 version = "=0.5.0-rc.3"

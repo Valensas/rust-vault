@@ -1,8 +1,9 @@
 #![allow(non_snake_case)]
 
+use std::env;
 use std::str::FromStr;
 use std::time::Duration;
-use mpc_utils::env::util::Util;
+use duration_string::DurationString;
 
 #[derive(Clone, Debug)]
 pub enum AuthMethod {
@@ -37,7 +38,7 @@ pub struct VaultConfig {
 
 impl VaultConfig {
     pub fn loadEnv() -> VaultConfig {
-        let auth_method: AuthMethod = Util::loadOrDefault("VAULT_AUTH_METHOD", "Token")
+        let auth_method: AuthMethod = env::var("VAULT_AUTH_METHOD").unwrap_or(String::from("Token"))
             .parse::<AuthMethod>()
             .expect("Env variable: VAULT_AUTH_METHOD is not valid. Possible values: Token, Kubernetes");
 
@@ -47,27 +48,26 @@ impl VaultConfig {
 
         match auth_method {
             AuthMethod::Token => {
-                token = Some(Util::loadOrPanic("VAULT_TOKEN", "vault token must be set for 'Token' authentication"))
+                token = Some(env::var("VAULT_TOKEN").expect("vault token must be set for 'Token' authentication"))
             }
             AuthMethod::Kubernetes => {
-                role_name = Some(Util::loadOrDefault("VAULT_KUBERNETES_ROLE_NAME", "client"));
-                token_path = Some(Util::loadOrDefault("VAULT_KUBERNETES_TOKEN_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/token"));
-                token_path = Some(format!("{}{}", std::env::current_dir().unwrap().display(), token_path.unwrap()));
+                role_name = Some(env::var("VAULT_KUBERNETES_ROLE_NAME").unwrap_or(String::from("client")));
+                token_path = Some(env::var("VAULT_KUBERNETES_TOKEN_PATH").unwrap_or(String::from("/var/run/secrets/kubernetes.io/serviceaccount/token")));
+                token_path = Some(format!("{}{}", env::current_dir().unwrap().display(), token_path.unwrap()));
             }
         }
+        let address: String = env::var("VAULT_ADDR").unwrap_or(String::from("http://localhost:8200"));
+        let mount_path: String = env::var("VAULT_MOUNT_PATH").unwrap_or(String::from("secret"));
+        let client_timeout_str: String = env::var("VAULT_CLIENT_TIMEOUT").unwrap_or(String::from("5s"));
+        let client_timeout = DurationString::from_string(client_timeout_str).expect("Vault client timeout could not be parsed as duration.").into();
 
-        let address: String = Util::loadOrDefault("VAULT_ADDR", "http://localhost:8200");
-        let mount_path: String = Util::loadOrDefault("VAULT_MOUNT_PATH", "secret");
-        let client_timeout_str: String = Util::loadOrDefault("VAULT_CLIENT_TIMEOUT", "5s");
-        let client_timeout = Util::strToDuration(client_timeout_str, "Vault client timeout could not be parsed as duration.");
+        let healthcheck_file_path: String = env::var("VAULT_HEALTH_CHECK_FILE").unwrap_or(String::from("healthcheck_file"));
 
-        let healthcheck_file_path: String = Util::loadOrDefault("VAULT_HEALTH_CHECK_FILE", "healthcheck_file");
-
-        let retry_count = Util::loadOrDefault("VAULT_RETRY_COUNT", "5")
+        let retry_count: u16 = env::var("VAULT_RETRY_COUNT").unwrap_or(String::from("5"))
             .parse::<u16>()
             .expect("Env variable: VAULT_RETRY_COUNT is not valid. Type must be the u16.");
 
-        return VaultConfig {
+        VaultConfig {
             auth_method,
             token,
             role_name,
@@ -77,6 +77,6 @@ impl VaultConfig {
             client_timeout,
             healthcheck_file_path,
             retry_count,
-        };
+        }
     }
 }

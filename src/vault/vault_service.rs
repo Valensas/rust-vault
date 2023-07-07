@@ -4,14 +4,14 @@ use std::{sync::{Arc, RwLock}};
 use rocket::futures::executor::block_on;
 use rustify::clients::reqwest::Client as HTTPClient;
 use serde::{Deserialize, Serialize};
-use tokio::task::JoinHandle;
+use tokio::task::{JoinError, JoinHandle};
 use vaultrs::{
     api::AuthInfo,
     client::{Client, VaultClient},
     error::ClientError,
     kv2,
 };
-use crate::errors::error::VaultError;
+use vaultrs::api::kv2::responses::SecretVersionMetadata;
 use crate::vault::authenticate_vault::authenticate_vault_trait::AuthenticateVault;
 use crate::vault::authenticate_vault::kubernetes::AuthenticateKubernetesVault;
 use crate::vault::authenticate_vault::token::AuthenticateTokenVault;
@@ -57,11 +57,11 @@ impl Clone for VaultService {
                     policies: auth_instance.policies.clone(),
                     token_policies: auth_instance.token_policies.clone(),
                     metadata: auth_instance.metadata.clone(),
-                    lease_duration: auth_instance.lease_duration.clone(),
-                    renewable: auth_instance.renewable.clone(),
+                    lease_duration: auth_instance.lease_duration,
+                    renewable: auth_instance.renewable,
                     entity_id: auth_instance.entity_id.clone(),
                     token_type: auth_instance.token_type.clone(),
-                    orphan: auth_instance.orphan.clone(),
+                    orphan: auth_instance.orphan,
                 })
             }
             None => None,
@@ -75,12 +75,12 @@ impl Clone for VaultService {
 }
 
 impl VaultService {
-    pub async fn new() -> Result<Self, VaultError> {
+    pub async fn new() -> Result<Self, ClientError> {
         let config: VaultConfig = VaultConfig::loadEnv();
-        return match config.auth_method {
+        match config.auth_method {
             AuthMethod::Token => { AuthenticateTokenVault.authenticate(config).await }
             AuthMethod::Kubernetes => { AuthenticateKubernetesVault.authenticate(config).await }
-        };
+        }
     }
 
     pub async fn renewToken(&mut self) {
@@ -97,8 +97,8 @@ impl VaultService {
         }
     }
 
-    pub async fn insert<T: serde::Serialize>(&self, key: &str, data: T) -> bool {
-        kv2::set(&self.client, &self.config.mount_path, key, &data).await.is_ok()
+    pub async fn insert<T: serde::Serialize>(&self, key: &str, data: T) -> Result<SecretVersionMetadata, ClientError> {
+        kv2::set(&self.client, &self.config.mount_path, key, &data).await
     }
 
     pub async fn read<'a, T: for<'de> serde::Deserialize<'de>>(
@@ -109,108 +109,53 @@ impl VaultService {
     }
 
     async fn versions(&self, key: &str) -> Result<Vec<u64>, ClientError> {
-        let x = kv2::read_metadata(
+        let secret_metadata = kv2::read_metadata(
             &self.client,
             &self.config.mount_path,
             key,
         ).await;
-        if x.is_err() {
-            return Err(ClientError::FileNotFoundError {
-                path: key.to_string(),
-            });
-        }
+
         Ok(
-            x
-                .unwrap()
+            secret_metadata?
                 .versions.into_iter()
                 .map(|x| x.0.parse::<u64>().unwrap())
                 .collect()
         )
     }
 
-    pub async fn delete(&self, key: &str) -> Result<bool, ClientError> {
-        let version_result = self.versions(key).await;
-        if version_result.is_err() {
-            return Err(version_result.err().unwrap());
-        }
-        Ok(
-            kv2
-            ::delete_versions(
-                &self.client,
-                &self.config.mount_path,
-                key,
-                version_result.ok().unwrap(),
-            ).await
-                .is_err()
-        )
+    pub async fn delete(&self, key: &str) -> Result<(), ClientError> {
+        let version_result = self.versions(key).await?;
+
+        kv2::delete_versions(&self.client, &self.config.mount_path, key, version_result).await
     }
 
-    pub async fn permenantly_delete(&self, key: &str) -> Result<bool, ClientError> {
-        let version = match self.versions(key).await {
-            Ok(version) => version,
-            Err(err) => {
-                return Err(err);
-            }
-        };
+    pub async fn permanently_delete(&self, key: &str) -> Result<(), ClientError> {
+        let version = self.versions(key).await?;
 
-        match
-        kv2::destroy_versions(
-            &self.client,
-            &self.config.mount_path,
-            key,
-            version,
-        ).await
-        {
-            Ok(_) => Ok(true),
-            Err(err) => Err(err),
-        }
+        kv2::destroy_versions(&self.client, &self.config.mount_path, key, version).await
     }
 
-    pub async fn clearHealthFile(&self) -> Result<bool, VaultError> {
+    pub async fn clearHealthFile(&self) -> Result<(), ClientError> {
         let path = self.config.healthcheck_file_path.clone();
-        let delete = match self.delete(&path).await {
-            Ok(_) => Ok(true),
-            Err(err) => Err(VaultError::new(format!("{}", err))),
-        };
-        let perm_delete = match self.permenantly_delete(&path).await {
-            Ok(_) => Ok(true),
-            Err(err) => Err(VaultError::new(format!("{}", err))),
-        };
-        if perm_delete.is_ok() && delete.is_ok() {
-            delete
-        } else {
-            let mut perm_err = VaultError::new("".to_string());
-            let mut err = VaultError::new("".to_string());
-            if perm_delete.is_err() {
-                perm_err = perm_delete.unwrap_err();
-                log::error!(
-                    "an error occured during health file removal:\npermanent delete error: {}",
-                    perm_err
-                );
-            }
-            if delete.is_err() {
-                err = delete.unwrap_err();
-                log::error!("an error occured during health file removal:\ndelete error: {}", err);
-            }
-            Err(VaultError::new(format!("{}\n{}", perm_err, err)))
-        }
+        self.delete(&path).await?;
+        self.permanently_delete(&path).await
     }
 
-    pub async fn setupHealtcheckFile(&self) -> Result<bool, VaultError> {
+    pub async fn setupHealthCheckFile(&self) -> Result<bool, ClientError> {
         let data = HealthCheckData {
             data: "health check file".to_string(),
         };
         let path = self.config.healthcheck_file_path.clone();
         match self.insert(path.as_str(), data).await {
-            true => Ok(true),
-            false => Err(VaultError::new("vault health file could not be inserted!".to_string())),
+            Ok(_) => Ok(true),
+            Err(err) => Err(err),
         }
     }
 }
 
 pub async fn tokenRenewalCycle(
     cloned_service: Arc<RwLock<VaultService>>
-) -> Option<JoinHandle<Result<(), VaultError>>> {
+) -> Option<JoinHandle<Result<(), JoinError>>> {
     let x: Option<JoinHandle<_>> = match cloned_service.clone().read() {
         Ok(res) => {
             match res.clone().auth_info {
@@ -251,24 +196,21 @@ pub async fn tokenRenewalCycle(
 }
 
 pub async fn tokenRenewalAbortion(
-    token_renewal_handler: Option<JoinHandle<Result<(), VaultError>>>
+    token_renewal_handler: Option<JoinHandle<Result<(), JoinError>>>
 ) {
-    match token_renewal_handler {
-        Some(res) => {
-            res.abort();
-            match res.await {
-                Ok(_) => {
+    if let Some(res) = token_renewal_handler {
+        res.abort();
+        match res.await {
+            Ok(_) => {
+                log::info!("token renewal stopped gracefully");
+            }
+            Err(err) => {
+                if err.is_cancelled() {
                     log::info!("token renewal stopped gracefully");
-                }
-                Err(err) => {
-                    if err.is_cancelled() {
-                        log::info!("token renewal stopped gracefully");
-                    } else {
-                        log::error!("token renewal err {}", err);
-                    }
+                } else {
+                    log::error!("token renewal err {}", err);
                 }
             }
         }
-        None => {}
     }
 }
