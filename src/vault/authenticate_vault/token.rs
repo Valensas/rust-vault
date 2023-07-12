@@ -1,4 +1,4 @@
-use std::io::Error;
+use std::io;
 use crate::vault::vault_config::VaultConfig;
 use crate::vault::vault_service::VaultService;
 use vaultrs::{
@@ -19,7 +19,7 @@ impl AuthenticateVault for AuthenticateTokenVault {
             .timeout(Some(config.client_timeout)).clone();
     }
 
-    fn get_jwt_token(&self, _: &VaultConfig) -> Result<Option<String>, Error> {
+    fn get_jwt_token(&self, _: &VaultConfig) -> Result<Option<String>, io::Error> {
         Ok(None)
     }
 

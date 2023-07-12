@@ -17,7 +17,7 @@ struct TestData {
 
 #[tokio::test]
 async fn write_delete_test() {
-    let config = &VaultConfig::loadEnv();
+    let config = &VaultConfig::loadEnv().unwrap();
     let mut service = VaultService::new().await;
 
     for _ in 0..config.retry_count {
@@ -72,7 +72,7 @@ async fn write_delete_test() {
 
 #[tokio::test]
 async fn write_destroy_test() {
-    let config = VaultConfig::loadEnv();
+    let config = VaultConfig::loadEnv().unwrap();
 
     let mut service = VaultService::new().await;
 
