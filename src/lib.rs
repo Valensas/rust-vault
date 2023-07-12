@@ -5,25 +5,33 @@
 /// Add the following to your `Cargo.toml` file:
 /// ```toml
 /// [dependencies]
-/// valensas_vault = "0.1.0"
+/// valensas_vault = "0.1.2"
 /// ```
 ///
 /// ## Usage
 /// You should define following environment variables to configure Vault.
-///
-/// VAULT_ADDR: default "http://localhost:8200"
-/// VAULT_MOUNT_PATH: default secret
-/// VAULT_CLIENT_TIMEOUT: default 5s
-/// VAULT_HEALTH_CHECK_FILE: default healthcheck_file
-/// VAULT_RETRY_COUNT: default 5
+///```yaml
+/// VAULT_ADDR: "http://localhost:8200"
+/// VAULT_MOUNT_PATH: secret
+/// VAULT_CLIENT_TIMEOUT: 5s
+/// VAULT_HEALTH_CHECK_FILE: healthcheck_file
+/// VAULT_RETRY_COUNT: 5
+/// ```
 ///
 /// For Kubernetes Configuration:
+/// ```yaml
 /// VAULT_AUTH_METHOD: Kubernetes
-/// VAULT_KUBERNETES_ROLE_NAME: default client
-/// VAULT_KUBERNETES_TOKEN_PATH: default /var/run/secrets/kubernetes.io/serviceaccount/token
+/// VAULT_KUBERNETES_ROLE_NAME: client
+/// VAULT_KUBERNETES_TOKEN_PATH: /var/run/secrets/kubernetes.io/serviceaccount/token
+/// ```
+///
 /// For Token Configuration:
+/// ```yaml
 /// VAULT_AUTH_METHOD: Token
-/// VAULT_TOKEN: token to authenticate vault
+/// VAULT_TOKEN: token
+/// ```
+/// Given values are default values of the variables. Make sure to replace the variable with your own variables for Vault configuration.
+/// VAULT_AUTH_METHOD value can be either Token or Kubernetes.
 /// ```rust
 /// use std::time::Duration;
 /// use valensas_vault::vault::vault_service::{HealthCheckData, VaultService, VaultParams};
@@ -54,7 +62,7 @@
 /// // Initialize the Vault service
 /// let mut vault_service = VaultService::new();
 ///
-/// // Start token renewal in the background
+/// // Start token renewal
 /// let token_renewal_handle = tokenRenewalCycle(vault_service);
 ///
 /// // Perform some operations...
