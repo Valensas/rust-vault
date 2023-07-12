@@ -1,22 +1,22 @@
 #![allow(non_snake_case)]
 
-use std::{sync::{Arc, RwLock}};
-use std::error;
+use crate::vault::authenticate_vault::authenticate_vault_trait::AuthenticateVault;
+use crate::vault::authenticate_vault::kubernetes::AuthenticateKubernetesVault;
+use crate::vault::authenticate_vault::token::AuthenticateTokenVault;
+use crate::vault::vault_config::{AuthMethod, VaultConfig};
 use rocket::futures::executor::block_on;
 use rustify::clients::reqwest::Client as HTTPClient;
 use serde::{Deserialize, Serialize};
-use tokio::task::{JoinHandle};
+use std::error;
+use std::sync::{Arc, RwLock};
+use tokio::task::JoinHandle;
+use vaultrs::api::kv2::responses::SecretVersionMetadata;
+use vaultrs::error::ClientError;
 use vaultrs::{
     api::AuthInfo,
     client::{Client, VaultClient},
     kv2,
 };
-use vaultrs::api::kv2::responses::{SecretVersionMetadata};
-use vaultrs::error::ClientError;
-use crate::vault::authenticate_vault::authenticate_vault_trait::AuthenticateVault;
-use crate::vault::authenticate_vault::kubernetes::AuthenticateKubernetesVault;
-use crate::vault::authenticate_vault::token::AuthenticateTokenVault;
-use crate::vault::vault_config::{AuthMethod, VaultConfig};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct HealthCheckData {
@@ -79,8 +79,8 @@ impl VaultService {
     pub async fn new() -> Result<Self, Box<dyn error::Error>> {
         let config: VaultConfig = VaultConfig::loadEnv()?;
         match config.auth_method {
-            AuthMethod::Token => { AuthenticateTokenVault.authenticate(config).await }
-            AuthMethod::Kubernetes => { AuthenticateKubernetesVault.authenticate(config).await }
+            AuthMethod::Token => AuthenticateTokenVault.authenticate(config).await,
+            AuthMethod::Kubernetes => AuthenticateKubernetesVault.authenticate(config).await,
         }
     }
 
@@ -98,10 +98,14 @@ impl VaultService {
         }
     }
 
-    pub async fn insert<T: serde::Serialize>(&self, key: &str, data: T) -> Result<SecretVersionMetadata, ClientError> {
+    pub async fn insert<T: serde::Serialize>(
+        &self,
+        key: &str,
+        data: T,
+    ) -> Result<SecretVersionMetadata, ClientError> {
         match kv2::set(&self.client, &self.config.mount_path, key, &data).await {
-            Ok(result) => { Ok(result) }
-            Err(err) => { Err(err) }
+            Ok(result) => Ok(result),
+            Err(err) => Err(err),
         }
     }
 
@@ -110,39 +114,31 @@ impl VaultService {
         key: &str,
     ) -> Result<T, ClientError> {
         match kv2::read(&self.client, &self.config.mount_path, key).await {
-            Ok(result) => { Ok(result) }
-            Err(err) => { Err(err) }
+            Ok(result) => Ok(result),
+            Err(err) => Err(err),
         }
     }
 
     async fn versions(&self, key: &str) -> Result<Vec<u64>, ClientError> {
-        let secret_metadata = kv2::read_metadata(
-            &self.client,
-            &self.config.mount_path,
-            key,
-        ).await;
+        let secret_metadata = kv2::read_metadata(&self.client, &self.config.mount_path, key).await;
 
         match secret_metadata {
-            Ok(secret) => {
-                Ok(
-                    secret
-                        .versions.into_iter()
-                        .map(|x| x.0.parse::<u64>().unwrap())
-                        .collect()
-                )
-            }
-            Err(err) => {
-                Err(err)
-            }
+            Ok(secret) => Ok(secret
+                .versions
+                .into_iter()
+                .map(|x| x.0.parse::<u64>().unwrap())
+                .collect()),
+            Err(err) => Err(err),
         }
     }
 
     pub async fn delete(&self, key: &str) -> Result<(), ClientError> {
         let version_result = self.versions(key).await?;
 
-        match kv2::delete_versions(&self.client, &self.config.mount_path, key, version_result).await {
-            Ok(result) => { Ok(result) }
-            Err(err) => { Err(err) }
+        match kv2::delete_versions(&self.client, &self.config.mount_path, key, version_result).await
+        {
+            Ok(result) => Ok(result),
+            Err(err) => Err(err),
         }
     }
 
@@ -150,8 +146,8 @@ impl VaultService {
         let version = self.versions(key).await?;
 
         match kv2::destroy_versions(&self.client, &self.config.mount_path, key, version).await {
-            Ok(result) => { Ok(result) }
-            Err(err) => { Err(err) }
+            Ok(result) => Ok(result),
+            Err(err) => Err(err),
         }
     }
 
@@ -174,40 +170,37 @@ impl VaultService {
 }
 
 pub async fn tokenRenewalCycle(
-    cloned_service: Arc<RwLock<VaultService>>
+    cloned_service: Arc<RwLock<VaultService>>,
 ) -> Option<JoinHandle<Result<(), ClientError>>> {
     let x: Option<JoinHandle<_>> = match cloned_service.clone().read() {
-        Ok(res) => {
-            match res.clone().auth_info {
-                Some(res) => {
-                    if res.renewable {
-                        let handler = tokio::spawn(async move {
-                            let time = chrono::Duration::seconds(
-                                (res.lease_duration - 5).try_into().unwrap()
-                            );
-                            let mut interval = tokio::time::interval(time.to_std().unwrap());
+        Ok(res) => match res.clone().auth_info {
+            Some(res) => {
+                if res.renewable {
+                    let handler = tokio::spawn(async move {
+                        let time =
+                            chrono::Duration::seconds((res.lease_duration - 5).try_into().unwrap());
+                        let mut interval = tokio::time::interval(time.to_std().unwrap());
+                        interval.tick().await;
+                        loop {
                             interval.tick().await;
-                            loop {
-                                interval.tick().await;
-                                let cloned_cloned_vault = Arc::clone(&cloned_service);
-                                block_on(async {
-                                    match cloned_cloned_vault.write() {
-                                        Ok(mut res) => { res.renewToken().await }
-                                        Err(err) => {
-                                            log::error!("{}", err);
-                                        }
+                            let cloned_cloned_vault = Arc::clone(&cloned_service);
+                            block_on(async {
+                                match cloned_cloned_vault.write() {
+                                    Ok(mut res) => res.renewToken().await,
+                                    Err(err) => {
+                                        log::error!("{}", err);
                                     }
-                                });
-                            }
-                        });
-                        Some(handler)
-                    } else {
-                        None
-                    }
+                                }
+                            });
+                        }
+                    });
+                    Some(handler)
+                } else {
+                    None
                 }
-                None => None,
             }
-        }
+            None => None,
+        },
         Err(err) => {
             panic!("{}", err);
         }
@@ -216,7 +209,7 @@ pub async fn tokenRenewalCycle(
 }
 
 pub async fn tokenRenewalAbortion(
-    token_renewal_handler: Option<JoinHandle<Result<(), ClientError>>>
+    token_renewal_handler: Option<JoinHandle<Result<(), ClientError>>>,
 ) {
     if let Some(res) = token_renewal_handler {
         res.abort();
