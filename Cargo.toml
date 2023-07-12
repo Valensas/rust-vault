@@ -2,6 +2,7 @@
 name = "valensas-vault"
 version = "0.1.0"
 edition = "2021"
+description = "A library that provides a convenient interface for interacting with Vault"
 license = "MIT"
 
 [dependencies]
