@@ -4,8 +4,7 @@ This library provides a convenient interface for interacting with Vault. It allo
 
 ## Usage
 
-For detailed information visit: https://crates.io/crates/valensas-vault 
-
+For detailed information visit: https://docs.rs/valensas-vault
 ### Installation
 
 Add the following to your `Cargo.toml` file:
