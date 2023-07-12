@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use vaultrs::error::ClientError;
 
-use crate::vault::{vault_service::VaultService, vault_config::VaultConfig};
+use crate::vault::{vault_config::VaultConfig, vault_service::VaultService};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 struct TestData {
@@ -56,7 +56,9 @@ async fn write_delete_test() {
                         if let RustifyClientError::ServerResponseError { code, content } = source {
                             assert_eq!(code, 404);
                             let destroyed: Value = serde_json::from_str(&content.unwrap()).unwrap();
-                            if let Value::Bool(is_destroyed) = destroyed["data"]["metadata"]["destroyed"] {
+                            if let Value::Bool(is_destroyed) =
+                                destroyed["data"]["metadata"]["destroyed"]
+                            {
                                 assert!(!is_destroyed);
                                 return;
                             }
@@ -66,7 +68,9 @@ async fn write_delete_test() {
             }
             assert!(false);
         }
-        Err(_) => { panic!("data could not be inserted") }
+        Err(_) => {
+            panic!("data could not be inserted")
+        }
     }
 }
 
@@ -112,8 +116,7 @@ async fn write_destroy_test() {
                         if let RustifyClientError::ServerResponseError { code, content } = source {
                             assert_eq!(code, 404);
                             let destroyed: Value = serde_json::from_str(&content.unwrap()).unwrap();
-                            if
-                            let Value::Bool(is_destroyed) =
+                            if let Value::Bool(is_destroyed) =
                                 destroyed["data"]["metadata"]["destroyed"]
                             {
                                 assert!(is_destroyed);
@@ -125,6 +128,8 @@ async fn write_destroy_test() {
             }
             assert!(false);
         }
-        Err(_) => { panic!("data could not be inserted") }
+        Err(_) => {
+            panic!("data could not be inserted")
+        }
     }
 }

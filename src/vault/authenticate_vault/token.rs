@@ -1,12 +1,9 @@
-use std::io;
+use crate::vault::authenticate_vault::authenticate_vault_trait::AuthenticateVault;
 use crate::vault::vault_config::VaultConfig;
 use crate::vault::vault_service::VaultService;
-use vaultrs::{
-    client::{Client, VaultClient, VaultClientSettingsBuilder},
-};
 use async_trait::async_trait;
-use vaultrs::error::ClientError;
-use crate::vault::authenticate_vault::authenticate_vault_trait::AuthenticateVault;
+use std::{error, io};
+use vaultrs::client::{Client, VaultClient, VaultClientSettingsBuilder};
 
 pub struct AuthenticateTokenVault;
 
@@ -16,25 +13,27 @@ impl AuthenticateVault for AuthenticateTokenVault {
         return VaultClientSettingsBuilder::default()
             .address(config.address.clone())
             .token(config.token.clone().unwrap())
-            .timeout(Some(config.client_timeout)).clone();
+            .timeout(Some(config.client_timeout))
+            .clone();
     }
 
-    fn get_jwt_token(&self, _: &VaultConfig) -> Result<Option<String>, io::Error> {
-        Ok(None)
+    fn get_jwt_token(&self, _: &VaultConfig) -> Option<Result<String, io::Error>> {
+        None
     }
 
-    async fn create_service(&self, client: VaultClient, config: &VaultConfig, _: Option<String>) -> Result<VaultService, ClientError> {
+    async fn create_service(
+        &self,
+        client: VaultClient,
+        config: &VaultConfig,
+        _: Option<Result<String, io::Error>>,
+    ) -> Result<VaultService, Box<dyn error::Error>> {
         return match client.status().await {
-            Ok(_) => {
-                Ok(
-                    VaultService {
-                        client,
-                        config: config.clone(),
-                        auth_info: None,
-                    }
-                )
-            }
-            Err(err) => { Err(err) }
+            Ok(_) => Ok(VaultService {
+                client,
+                config: config.clone(),
+                auth_info: None,
+            }),
+            Err(err) => Err(err.into()),
         };
     }
 }
