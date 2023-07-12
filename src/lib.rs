@@ -37,7 +37,7 @@
 ///     let secret_value = TestData {
 ///         name: "data".to_string(),
 ///     };
-///     vault_service.insert(secret_key, secret_value).await;
+///     vault_service.insert(secret_key, secret_value).await.unwrap();
 ///     println!("Secret inserted successfully.");
 ///
 ///     // Read a secret from Vault
