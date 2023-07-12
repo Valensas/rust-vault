@@ -3,8 +3,7 @@ use crate::vault::vault_config::VaultConfig;
 use crate::vault::vault_service::VaultService;
 use async_trait::async_trait;
 use std::fs::File;
-use std::io;
-use std::io::Read;
+use std::io::{self, Read};
 use vaultrs::error::ClientError;
 use vaultrs::{
     api::AuthInfo,
