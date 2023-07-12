@@ -11,4 +11,4 @@ Add the following to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-valensas_vault = "0.1.0"
+valensas-vault = "0.1.1"
