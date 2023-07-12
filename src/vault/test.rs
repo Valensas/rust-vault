@@ -17,7 +17,7 @@ struct TestData {
 
 #[tokio::test]
 async fn write_delete_test() {
-    let config = &VaultConfig::loadEnv();
+    let config = &VaultConfig::loadEnv().unwrap();
     let mut service = VaultService::new().await;
 
     for _ in 0..config.retry_count {
@@ -40,7 +40,7 @@ async fn write_delete_test() {
         name: "trial".to_string(),
     };
     match service.insert("test_1", inserted_data.clone()).await {
-        true => {
+        Ok(_) => {
             match service.read::<TestData>("test_1").await {
                 Ok(res) => {
                     assert_eq!(res, inserted_data);
@@ -66,13 +66,13 @@ async fn write_delete_test() {
             }
             assert!(false);
         }
-        false => { panic!("data could not be inserted") }
+        Err(_) => { panic!("data could not be inserted") }
     }
 }
 
 #[tokio::test]
 async fn write_destroy_test() {
-    let config = VaultConfig::loadEnv();
+    let config = VaultConfig::loadEnv().unwrap();
 
     let mut service = VaultService::new().await;
 
@@ -96,7 +96,7 @@ async fn write_destroy_test() {
         name: "trial".to_string(),
     };
     match service.insert("test_2", inserted_data.clone()).await {
-        true => {
+        Ok(_) => {
             match service.read::<TestData>("test_2").await {
                 Ok(res) => {
                     assert_eq!(res, inserted_data);
@@ -104,7 +104,7 @@ async fn write_destroy_test() {
                 Err(err) => panic!("{}", err),
             }
 
-            service.permenantly_delete("test_2").await.unwrap();
+            service.permanently_delete("test_2").await.unwrap();
             match service.read::<TestData>("test_2").await {
                 Ok(_) => panic!("Should be deleted"),
                 Err(err) => {
@@ -125,6 +125,6 @@ async fn write_destroy_test() {
             }
             assert!(false);
         }
-        false => { panic!("data could not be inserted") }
+        Err(_) => { panic!("data could not be inserted") }
     }
 }

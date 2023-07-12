@@ -63,6 +63,4 @@
 /// // Stop token renewal
 /// vault_service.tokenRenewalAbortion(token_renewal_handle);
 /// ```
-
 pub mod vault;
-pub mod errors;

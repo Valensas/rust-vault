@@ -1,8 +1,12 @@
 #![allow(non_snake_case)]
 
+use std::env;
+use std::error;
+use std::fmt::{Debug, Display, Formatter};
+use std::num::ParseIntError;
 use std::str::FromStr;
 use std::time::Duration;
-use mpc_utils::env::util::Util;
+use duration_string::DurationString;
 
 #[derive(Clone, Debug)]
 pub enum AuthMethod {
@@ -10,14 +14,25 @@ pub enum AuthMethod {
     Kubernetes,
 }
 
+#[derive(Debug, Clone)]
+pub struct UnknownAuthMethodError;
+
+impl error::Error for UnknownAuthMethodError {}
+
+impl Display for UnknownAuthMethodError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Env variable: VAULT_AUTH_METHOD is not valid. Possible values: Token, Kubernetes")
+    }
+}
+
 impl FromStr for AuthMethod {
-    type Err = ();
+    type Err = UnknownAuthMethodError;
 
     fn from_str(str: &str) -> Result<Self, Self::Err> {
         match str {
             "Token" => Ok(AuthMethod::Token),
             "Kubernetes" => Ok(AuthMethod::Kubernetes),
-            _ => Err(()),
+            _ => Err(UnknownAuthMethodError),
         }
     }
 }
@@ -36,10 +51,16 @@ pub struct VaultConfig {
 }
 
 impl VaultConfig {
-    pub fn loadEnv() -> VaultConfig {
-        let auth_method: AuthMethod = Util::loadOrDefault("VAULT_AUTH_METHOD", "Token")
-            .parse::<AuthMethod>()
-            .expect("Env variable: VAULT_AUTH_METHOD is not valid. Possible values: Token, Kubernetes");
+    pub fn loadEnv() -> Result<VaultConfig, Box<dyn error::Error>> {
+        let method: Result<AuthMethod, UnknownAuthMethodError> = env::var("VAULT_AUTH_METHOD").unwrap_or_else(|_| String::from("Token"))
+            .parse::<AuthMethod>();
+        let auth_method = match method {
+            Ok(mtd) => { mtd }
+            Err(err) => {
+                log::warn!("Env variable: VAULT_AUTH_METHOD is not valid. Possible values: Token, Kubernetes");
+                return Err(err.into());
+            }
+        };
 
         let mut token: Option<String> = None;
         let mut role_name: Option<String> = None;
@@ -47,36 +68,55 @@ impl VaultConfig {
 
         match auth_method {
             AuthMethod::Token => {
-                token = Some(Util::loadOrPanic("VAULT_TOKEN", "vault token must be set for 'Token' authentication"))
+                token = match env::var("VAULT_TOKEN") {
+                    Ok(token) => { Some(token) }
+                    Err(_) => {
+                        log::warn!("vault token must be set for 'Token' authentication");
+                        None
+                    }
+                };
             }
             AuthMethod::Kubernetes => {
-                role_name = Some(Util::loadOrDefault("VAULT_KUBERNETES_ROLE_NAME", "client"));
-                token_path = Some(Util::loadOrDefault("VAULT_KUBERNETES_TOKEN_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/token"));
-                token_path = Some(format!("{}{}", std::env::current_dir().unwrap().display(), token_path.unwrap()));
+                role_name = Some(env::var("VAULT_KUBERNETES_ROLE_NAME").unwrap_or(String::from("client")));
+                let path = env::var("VAULT_KUBERNETES_TOKEN_PATH").unwrap_or(String::from("/var/run/secrets/kubernetes.io/serviceaccount/token"));
+                token_path = Some(format!("{}{}", env::current_dir().unwrap().display(), path));
             }
         }
+        let address: String = env::var("VAULT_ADDR").unwrap_or(String::from("http://localhost:8200"));
+        let mount_path: String = env::var("VAULT_MOUNT_PATH").unwrap_or(String::from("secret"));
+        let client_timeout_str: String = env::var("VAULT_CLIENT_TIMEOUT").unwrap_or(String::from("5s"));
+        let client_timeout: Duration = match DurationString::from_string(client_timeout_str) {
+            Ok(timeout) => { Ok(Duration::from(timeout)) }
+            Err(err) => {
+                log::warn!("Vault client timeout could not be parsed as duration.");
+                Err(err)
+            }
+        }?;
 
-        let address: String = Util::loadOrDefault("VAULT_ADDR", "http://localhost:8200");
-        let mount_path: String = Util::loadOrDefault("VAULT_MOUNT_PATH", "secret");
-        let client_timeout_str: String = Util::loadOrDefault("VAULT_CLIENT_TIMEOUT", "5s");
-        let client_timeout = Util::strToDuration(client_timeout_str, "Vault client timeout could not be parsed as duration.");
+        let healthcheck_file_path: String = env::var("VAULT_HEALTH_CHECK_FILE").unwrap_or(String::from("healthcheck_file"));
 
-        let healthcheck_file_path: String = Util::loadOrDefault("VAULT_HEALTH_CHECK_FILE", "healthcheck_file");
+        let retry_count_result: Result<u16, ParseIntError> = env::var("VAULT_RETRY_COUNT").unwrap_or(String::from("5"))
+            .parse::<u16>();
 
-        let retry_count = Util::loadOrDefault("VAULT_RETRY_COUNT", "5")
-            .parse::<u16>()
-            .expect("Env variable: VAULT_RETRY_COUNT is not valid. Type must be the u16.");
-
-        return VaultConfig {
-            auth_method,
-            token,
-            role_name,
-            token_path,
-            address,
-            mount_path,
-            client_timeout,
-            healthcheck_file_path,
-            retry_count,
+        let retry_count = match retry_count_result {
+            Ok(ret_count) => { ret_count }
+            Err(err) => {
+                log::warn!("Env variable: VAULT_RETRY_COUNT is not valid. Type must be the u16.");
+                return Err(err.into());
+            }
         };
+
+        Ok(
+            VaultConfig {
+                auth_method,
+                token,
+                role_name,
+                token_path,
+                address,
+                mount_path,
+                client_timeout,
+                healthcheck_file_path,
+                retry_count,
+            })
     }
 }
