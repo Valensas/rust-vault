@@ -2,11 +2,9 @@ use crate::vault::authenticate_vault::authenticate_vault_trait::AuthenticateVaul
 use crate::vault::vault_config::VaultConfig;
 use crate::vault::vault_service::VaultService;
 use async_trait::async_trait;
-use std::fs::File;
-use std::io::{self, Read};
-use vaultrs::error::ClientError;
+use std::error;
+use std::{fs, io};
 use vaultrs::{
-    api::AuthInfo,
     auth::kubernetes,
     client::{Client, VaultClient, VaultClientSettingsBuilder},
 };
@@ -22,46 +20,30 @@ impl AuthenticateVault for AuthenticateKubernetesVault {
             .clone()
     }
 
-    fn get_jwt_token(&self, config: &VaultConfig) -> Result<Option<String>, io::Error> {
-        let mut token = String::new();
-        let mut file: File = match File::open(config.clone().token_path.unwrap().as_str()) {
-            Ok(file) => file,
-            Err(err) => {
-                return Err(err);
-            }
-        };
-        match file.read_to_string(&mut token) {
-            Ok(_) => Ok(Some(token)),
-            Err(err) => Err(err),
-        }
+    fn get_jwt_token(&self, config: &VaultConfig) -> Option<Result<String, io::Error>> {
+        Some(fs::read_to_string(config.clone().token_path?.as_str()))
     }
     async fn create_service(
         &self,
         mut client: VaultClient,
         config: &VaultConfig,
-        token: Option<String>,
-    ) -> Result<VaultService, ClientError> {
-        let auth_info: Option<AuthInfo> = match kubernetes::login(
+        token: Option<Result<String, io::Error>>,
+    ) -> Result<VaultService, Box<dyn error::Error>> {
+        let auth_info = kubernetes::login(
             &client,
             config.mount_path.as_str(),
             config.role_name.clone().unwrap().as_str(),
-            token.unwrap().trim(),
+            token.unwrap()?.trim(),
         )
-        .await
-        {
-            Ok(res) => {
-                client.set_token(&res.client_token);
-                Some(res)
-            }
-            Err(err) => {
-                return Err(err);
-            }
-        };
+        .await?;
+
+        client.set_token(&auth_info.client_token);
+        let auth = Some(auth_info);
 
         Ok(VaultService {
             client,
             config: config.clone(),
-            auth_info,
+            auth_info: auth,
         })
     }
 }

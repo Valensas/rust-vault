@@ -2,9 +2,8 @@ use crate::vault::authenticate_vault::authenticate_vault_trait::AuthenticateVaul
 use crate::vault::vault_config::VaultConfig;
 use crate::vault::vault_service::VaultService;
 use async_trait::async_trait;
-use std::io;
+use std::{error, io};
 use vaultrs::client::{Client, VaultClient, VaultClientSettingsBuilder};
-use vaultrs::error::ClientError;
 
 pub struct AuthenticateTokenVault;
 
@@ -18,23 +17,23 @@ impl AuthenticateVault for AuthenticateTokenVault {
             .clone();
     }
 
-    fn get_jwt_token(&self, _: &VaultConfig) -> Result<Option<String>, io::Error> {
-        Ok(None)
+    fn get_jwt_token(&self, _: &VaultConfig) -> Option<Result<String, io::Error>> {
+        None
     }
 
     async fn create_service(
         &self,
         client: VaultClient,
         config: &VaultConfig,
-        _: Option<String>,
-    ) -> Result<VaultService, ClientError> {
+        _: Option<Result<String, io::Error>>,
+    ) -> Result<VaultService, Box<dyn error::Error>> {
         return match client.status().await {
             Ok(_) => Ok(VaultService {
                 client,
                 config: config.clone(),
                 auth_info: None,
             }),
-            Err(err) => Err(err),
+            Err(err) => Err(err.into()),
         };
     }
 }
