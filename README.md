@@ -5,10 +5,12 @@ This library provides a convenient interface for interacting with Vault. It allo
 ## Usage
 
 For detailed information visit: https://docs.rs/valensas-vault
+Repository: https://github.com/Valensas/rust-vault
+
 ### Installation
 
 Add the following to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-valensas-vault = "0.1.3"
+valensas-vault = "0.1.4"

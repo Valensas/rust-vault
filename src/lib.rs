@@ -5,7 +5,7 @@
 //! Add the following to your `Cargo.toml` file:
 //! ```toml
 //! [dependencies]
-//! valensas_vault = "0.1.3"
+//! valensas_vault = "0.1.4"
 //! ```
 //!
 //! ## Usage
