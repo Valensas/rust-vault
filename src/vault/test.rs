@@ -1,4 +1,3 @@
-#![allow(non_snake_case)]
 #![cfg(test)]
 
 use std::{thread, time::Duration};
@@ -17,7 +16,7 @@ struct TestData {
 
 #[tokio::test]
 async fn write_delete_test() {
-    let config = &VaultConfig::loadEnv().unwrap();
+    let config = &VaultConfig::load_env().unwrap();
     let mut service = VaultService::new().await;
 
     for _ in 0..config.retry_count {
@@ -76,7 +75,7 @@ async fn write_delete_test() {
 
 #[tokio::test]
 async fn write_destroy_test() {
-    let config = VaultConfig::loadEnv().unwrap();
+    let config = VaultConfig::load_env().unwrap();
 
     let mut service = VaultService::new().await;
 
@@ -108,7 +107,7 @@ async fn write_destroy_test() {
                 Err(err) => panic!("{}", err),
             }
 
-            service.permanently_delete("test_2").await.unwrap();
+            service.delete_permanent("test_2").await.unwrap();
             match service.read::<TestData>("test_2").await {
                 Ok(_) => panic!("Should be deleted"),
                 Err(err) => {

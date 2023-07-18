@@ -56,9 +56,9 @@
 //!
 //! Token renewal:
 //!
-//! ```rust
+//!```rust
 //! use std::time::Duration;
-//! use valensas_vault::vault::vault_service::{tokenRenewalCycle, tokenRenewalAbortion, VaultService};
+//! use valensas_vault::vault::vault_service::{token_renewal, token_renewal_abortion, VaultService};
 //! // Initialize the Vault service
 //! let mut vault_service = VaultService::new();
 //!
