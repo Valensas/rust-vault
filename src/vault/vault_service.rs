@@ -6,8 +6,7 @@ use rocket::futures::executor::block_on;
 use rustify::clients::reqwest::Client as HTTPClient;
 use serde::{Deserialize, Serialize};
 use std::error;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
-use tokio::sync::mpsc::error::SendError;
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::{mpsc, mpsc::Sender};
 use tokio::task::JoinHandle;
@@ -96,7 +95,7 @@ impl VaultService {
             }
             Err(err) => {
                 log::info!("an error occurred during token renewal\n{}", err);
-                err
+                Err(err)
             }
         }
     }
@@ -160,7 +159,7 @@ impl VaultService {
             .await
         {
             Ok(_) => Ok(()),
-            Err(err) => err,
+            Err(err) => Err(err),
         }
     }
 
@@ -182,55 +181,57 @@ impl VaultService {
     }
 }
 
-pub async fn token_renewal(
+pub fn token_renewal(
     cloned_service: Arc<RwLock<VaultService>>,
 ) -> Option<(JoinHandle<Result<(), ClientError>>, Sender<bool>)> {
-    let vault_lock;
-    while let res = cloned_service.clone().read() {
-        if res.is_err() {
-            continue;
-        }
-        vault_lock = res.unwrap()
+    let mut vault_lock = cloned_service.read();
+    while vault_lock.is_err() {
+        vault_lock = cloned_service.read();
     }
-    return match vault_lock.clone().auth_info {
+    let vault = vault_lock.unwrap();
+    match vault.clone().auth_info {
         Some(auth_info) => {
             if auth_info.renewable {
-                let (sender, mut receiver) = mpsc::channel::<bool>(1);
-                let handler = inner_token_renewal(cloned_service.clone(), receiver);
+                let (sender, receiver) = mpsc::channel::<bool>(1);
+                let handler = inner_token_renewal(auth_info, cloned_service.clone(), receiver);
                 Some((handler, sender))
             } else {
                 None
             }
         }
         None => None,
-    };
+    }
 }
 
 pub fn inner_token_renewal(
+    auth_info: AuthInfo,
     cloned_service: Arc<RwLock<VaultService>>,
     mut receiver: Receiver<bool>,
 ) -> JoinHandle<Result<(), ClientError>> {
     tokio::spawn(async move {
-        let time = chrono::Duration::seconds((res.lease_duration - 5).try_into().unwrap());
+        let time = chrono::Duration::seconds((auth_info.lease_duration - 5).try_into().unwrap());
         let mut interval = tokio::time::interval(time.to_std().unwrap());
         interval.tick().await;
 
         loop {
             interval.tick().await;
             let cloned_cloned_vault = Arc::clone(&cloned_service);
+            if let Ok(true) = receiver.try_recv() {
+                break;
+            }
             block_on(async {
-                if let Ok(true) = receiver.try_recv() {
-                    break;
-                }
                 match cloned_cloned_vault.write() {
-                    Ok(mut res) => res.renew_token()?.await,
+                    Ok(mut res) => {
+                        while res.renew_token().await.is_err() {
+                            log::error!("retring to renew token");
+                        }
+                    },
                     Err(err) => {
                         log::error!("{}", err);
-                        return err;
                     }
-                }
+                };
             });
-        }
+        };
         Ok(())
     })
 }
