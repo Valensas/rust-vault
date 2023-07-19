@@ -23,6 +23,8 @@ pub struct HealthCheckData {
     pub(crate) data: String,
 }
 
+type ThreadHandler = Option<(JoinHandle<Result<(), ClientError>>, Sender<bool>)>;
+
 pub struct VaultService {
     pub(crate) client: VaultClient,
     pub(crate) config: VaultConfig,
@@ -183,7 +185,7 @@ impl VaultService {
 
 pub fn token_renewal(
     cloned_service: Arc<RwLock<VaultService>>,
-) -> Option<(JoinHandle<Result<(), ClientError>>, Sender<bool>)> {
+) -> ThreadHandler {
     let mut vault_lock = cloned_service.read();
     while vault_lock.is_err() {
         vault_lock = cloned_service.read();
