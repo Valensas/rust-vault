@@ -1,5 +1,3 @@
-#![allow(non_snake_case)]
-
 use crate::vault::authenticate_vault::authenticate_vault_trait::AuthenticateVault;
 use crate::vault::authenticate_vault::kubernetes::AuthenticateKubernetesVault;
 use crate::vault::authenticate_vault::token::AuthenticateTokenVault;
@@ -9,6 +7,8 @@ use rustify::clients::reqwest::Client as HTTPClient;
 use serde::{Deserialize, Serialize};
 use std::error;
 use std::sync::{Arc, RwLock};
+use tokio::sync::mpsc::Receiver;
+use tokio::sync::{mpsc, mpsc::Sender};
 use tokio::task::JoinHandle;
 use vaultrs::api::kv2::responses::SecretVersionMetadata;
 use vaultrs::error::ClientError;
@@ -20,13 +20,15 @@ use vaultrs::{
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct HealthCheckData {
-    pub data: String,
+    pub(crate) data: String,
 }
 
+type ThreadHandler = Option<(JoinHandle<Result<(), ClientError>>, Sender<bool>)>;
+
 pub struct VaultService {
-    pub client: VaultClient,
+    pub(crate) client: VaultClient,
     pub(crate) config: VaultConfig,
-    pub auth_info: Option<AuthInfo>,
+    pub(crate) auth_info: Option<AuthInfo>,
 }
 
 impl std::fmt::Debug for VaultService {
@@ -77,23 +79,25 @@ impl Clone for VaultService {
 
 impl VaultService {
     pub async fn new() -> Result<Self, Box<dyn error::Error>> {
-        let config: VaultConfig = VaultConfig::loadEnv()?;
+        let config: VaultConfig = VaultConfig::load_env()?;
         match config.auth_method {
             AuthMethod::Token => AuthenticateTokenVault.authenticate(config).await,
             AuthMethod::Kubernetes => AuthenticateKubernetesVault.authenticate(config).await,
         }
     }
 
-    pub async fn renewToken(&mut self) {
+    async fn renew_token(&mut self) -> Result<(), ClientError> {
         log::debug!("vault token renewal began");
         match self.client.renew(None).await {
             Ok(res) => {
                 self.client.set_token(&res.client_token);
                 self.auth_info = Some(res);
-                log::info!("vault token renewal is successfull");
+                log::info!("vault token renewal is successful");
+                Ok(())
             }
             Err(err) => {
-                log::info!("an error occured during token renewal\n{}", err);
+                log::info!("an error occurred during token renewal\n{}", err);
+                Err(err)
             }
         }
     }
@@ -142,7 +146,7 @@ impl VaultService {
         }
     }
 
-    pub async fn permanently_delete(&self, key: &str) -> Result<(), ClientError> {
+    pub async fn delete_permanent(&self, key: &str) -> Result<(), ClientError> {
         let version = self.versions(key).await?;
 
         match kv2::destroy_versions(&self.client, &self.config.mount_path, key, version).await {
@@ -151,13 +155,23 @@ impl VaultService {
         }
     }
 
-    pub async fn clearHealthFile(&self) -> Result<(), ClientError> {
-        let path = self.config.healthcheck_file_path.clone();
-        self.delete(&path).await?;
-        self.permanently_delete(&path).await
+    pub async fn healthcheck(&self) -> Result<(), ClientError> {
+        match self
+            .read::<HealthCheckData>(self.config.healthcheck_file_path.as_str())
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(err) => Err(err),
+        }
     }
 
-    pub async fn setupHealthCheckFile(&self) -> Result<bool, ClientError> {
+    pub async fn clear_healthcheck_file(&self) -> Result<(), ClientError> {
+        let path = self.config.healthcheck_file_path.clone();
+        self.delete(&path).await?;
+        self.delete_permanent(&path).await
+    }
+
+    pub async fn setup_healthcheck_file(&self) -> Result<bool, ClientError> {
         let data = HealthCheckData {
             data: "health check file".to_string(),
         };
@@ -169,60 +183,80 @@ impl VaultService {
     }
 }
 
-pub async fn tokenRenewalCycle(
+pub fn token_renewal(
     cloned_service: Arc<RwLock<VaultService>>,
-) -> Option<JoinHandle<Result<(), ClientError>>> {
-    let x: Option<JoinHandle<_>> = match cloned_service.clone().read() {
-        Ok(res) => match res.clone().auth_info {
-            Some(res) => {
-                if res.renewable {
-                    let handler = tokio::spawn(async move {
-                        let time =
-                            chrono::Duration::seconds((res.lease_duration - 5).try_into().unwrap());
-                        let mut interval = tokio::time::interval(time.to_std().unwrap());
-                        interval.tick().await;
-                        loop {
-                            interval.tick().await;
-                            let cloned_cloned_vault = Arc::clone(&cloned_service);
-                            block_on(async {
-                                match cloned_cloned_vault.write() {
-                                    Ok(mut res) => res.renewToken().await,
-                                    Err(err) => {
-                                        log::error!("{}", err);
-                                    }
-                                }
-                            });
-                        }
-                    });
-                    Some(handler)
-                } else {
-                    None
-                }
+) -> ThreadHandler {
+    let mut vault_lock = cloned_service.read();
+    while vault_lock.is_err() {
+        vault_lock = cloned_service.read();
+    }
+    let vault = vault_lock.unwrap();
+    match vault.clone().auth_info {
+        Some(auth_info) => {
+            if auth_info.renewable {
+                let (sender, receiver) = mpsc::channel::<bool>(1);
+                let handler = inner_token_renewal(auth_info, cloned_service.clone(), receiver);
+                Some((handler, sender))
+            } else {
+                None
             }
-            None => None,
-        },
-        Err(err) => {
-            panic!("{}", err);
         }
-    };
-    x
+        None => None,
+    }
 }
 
-pub async fn tokenRenewalAbortion(
-    token_renewal_handler: Option<JoinHandle<Result<(), ClientError>>>,
-) {
-    if let Some(res) = token_renewal_handler {
-        res.abort();
-        match res.await {
-            Ok(_) => {
-                log::info!("token renewal stopped gracefully");
+pub fn inner_token_renewal(
+    auth_info: AuthInfo,
+    cloned_service: Arc<RwLock<VaultService>>,
+    mut receiver: Receiver<bool>,
+) -> JoinHandle<Result<(), ClientError>> {
+    tokio::spawn(async move {
+        let time = chrono::Duration::seconds((auth_info.lease_duration - 5).try_into().unwrap());
+        let mut interval = tokio::time::interval(time.to_std().unwrap());
+        interval.tick().await;
+
+        loop {
+            interval.tick().await;
+            let cloned_cloned_vault = Arc::clone(&cloned_service);
+            if let Ok(true) = receiver.try_recv() {
+                break;
             }
-            Err(err) => {
-                if err.is_cancelled() {
-                    log::info!("token renewal stopped gracefully");
-                } else {
-                    log::error!("token renewal err {}", err);
-                }
+            block_on(async {
+                match cloned_cloned_vault.write() {
+                    Ok(mut res) => {
+                        while res.renew_token().await.is_err() {
+                            log::error!("retring to renew token");
+                        }
+                    },
+                    Err(err) => {
+                        log::error!("{}", err);
+                    }
+                };
+            });
+        };
+        Ok(())
+    })
+}
+
+pub async fn token_renewal_abortion(
+    token_renewal_handler: (JoinHandle<Result<(), ClientError>>, Sender<bool>),
+) {
+    let (res, sender) = token_renewal_handler;
+
+    while let Err(err) = sender.send(true).await {
+        log::error!("{}", err);
+    }
+
+    res.abort();
+    match res.await {
+        Ok(_) => {
+            log::info!("token renewal stopped gracefully");
+        }
+        Err(err) => {
+            if err.is_cancelled() {
+                log::info!("token renewal stopped gracefully");
+            } else {
+                log::error!("token renewal err {}", err);
             }
         }
     }

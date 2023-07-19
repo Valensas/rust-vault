@@ -5,7 +5,7 @@
 //! Add the following to your `Cargo.toml` file:
 //! ```toml
 //! [dependencies]
-//! valensas_vault = "0.1.4"
+//! valensas_vault = "0.1.5"
 //! ```
 //!
 //! ## Usage
@@ -34,8 +34,15 @@
 //! VAULT_AUTH_METHOD value can be either Token or Kubernetes.
 //! ```rust
 //! use std::time::Duration;
-//! use valensas_vault::vault::vault_service::{HealthCheckData, VaultService, VaultParams};
-//!
+//! use valensas_vault::vault::vault_service::{HealthCheckData, VaultService};
+//! use serde::{Deserialize, Serialize};
+//! 
+//! #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+//! struct TestData {
+//!     name: String,
+//! }
+//! 
+//! #[tokio::main]
 //! async fn main() {
 //!     // Initialize the Vault service
 //!     let vault_service = VaultService::new().await.unwrap();
@@ -56,19 +63,30 @@
 //!
 //! Token renewal:
 //!
-//! ```rust
+//!```rust
 //! use std::time::Duration;
-//! use valensas_vault::vault::vault_service::{tokenRenewalCycle, tokenRenewalAbortion, VaultService};
-//! // Initialize the Vault service
-//! let mut vault_service = VaultService::new();
-//!
-//! // Start token renewal
-//! let token_renewal_handle = tokenRenewalCycle(vault_service);
-//!
-//! // Perform some operations...
-//! // ...
-//!
-//! // Stop token renewal
-//! vault_service.tokenRenewalAbortion(token_renewal_handle);
+//! use valensas_vault::vault::vault_service::{token_renewal, token_renewal_abortion, VaultService};
+//! use std::sync::RwLock;
+//! use std::sync::Arc;
+//! 
+//! #[tokio::main]
+//! async fn main() {
+//!     // Initialize the Vault service
+//!     let vault_service = VaultService::new().await.unwrap();
+//! 
+//!     let vault_service = Arc::new(RwLock::new(vault_service));
+//! 
+//!     // Start token renewal
+//!     let handler = token_renewal(vault_service);
+//! 
+//!     // Perform some operations...
+//!     // ...
+//! 
+//!     // Stop token renewal
+//!     // handler may be none in case if auth method is Kubernetes
+//!     if let Some((token_renewal_handle, sender)) = handler {
+//!         token_renewal_abortion((token_renewal_handle, sender));
+//!     }
+//! }
 //! ```
 pub mod vault;

@@ -1,5 +1,3 @@
-#![allow(non_snake_case)]
-
 use duration_string::DurationString;
 use std::env;
 use std::error;
@@ -54,7 +52,7 @@ pub struct VaultConfig {
 }
 
 impl VaultConfig {
-    pub fn loadEnv() -> Result<VaultConfig, Box<dyn error::Error>> {
+    pub fn load_env() -> Result<VaultConfig, Box<dyn error::Error>> {
         let method: Result<AuthMethod, UnknownAuthMethodError> = env::var("VAULT_AUTH_METHOD")
             .unwrap_or_else(|_| String::from("Token"))
             .parse::<AuthMethod>();
