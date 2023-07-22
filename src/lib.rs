@@ -66,7 +66,7 @@
 //!```rust
 //! use std::time::Duration;
 //! use valensas_vault::vault::vault_service::{token_renewal, token_renewal_abortion, VaultService};
-//! use std::sync::RwLock;
+//! use tokio::sync::RwLock;
 //! use std::sync::Arc;
 //!
 //! #[tokio::main]
@@ -89,6 +89,6 @@
 //!     }
 //! }
 //! ```
-pub mod vault_config;
-pub mod vault_service;
+pub mod config;
+pub mod service;
 pub mod auth;

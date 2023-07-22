@@ -4,6 +4,7 @@ use std::{
     fmt::Debug,
     sync::Arc,
 };
+use tokio::sync::RwLock;
 use vaultrs::{
     api::AuthInfo,
     client::VaultClient
@@ -26,9 +27,9 @@ impl AuthResult {
 }
 
 #[async_trait]
-pub trait AuthMethod: Debug {
+pub trait AuthMethod: Debug + Send + Sync {
     async fn authenticate(
         &self,
-        client: Arc<VaultClient>,
+        client: Arc<RwLock<VaultClient>>,
     ) -> Result<AuthResult, Box<dyn Error>>;
 }

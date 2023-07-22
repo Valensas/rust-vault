@@ -2,23 +2,23 @@ use crate::auth::method::AuthMethod;
 use duration_string::DurationString;
 use std::env;
 use std::error;
+use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
-use std::io;
 use std::num::ParseIntError;
 use std::sync::Arc;
-use std::sync::RwLock;
+use tokio::sync::RwLock;
 use std::time::Duration;
 
 use crate::auth::kubernetes::KubernetesAuth;
 use crate::auth::token::TokenAuth;
 
 #[derive(Debug)]
-enum ConfigError {
+pub enum ConfigError {
     MissingToken,
     UnknownAuthMethod(String),
     InvalidTimeoutDuration(String, String),
     InvalidLoginRetryCount(String, ParseIntError),
-    KubernetesAuthError(io::Error),
+    KubernetesAuthError(Box<dyn Error>),
 }
 
 impl Display for ConfigError {
@@ -37,7 +37,6 @@ impl error::Error for ConfigError {}
 
 #[derive(Clone, Debug)]
 pub struct VaultConfig {
-    pub auth_method: Arc<RwLock<dyn AuthMethod>>,
     pub address: String,
     pub mount_path: String,
     pub client_timeout: Duration,
@@ -46,14 +45,14 @@ pub struct VaultConfig {
 }
 
 impl VaultConfig {
-    pub fn load_env() -> Result<Self, ConfigError> {
+    pub fn load_env() -> Result<(Self, Arc<RwLock<dyn AuthMethod>>), ConfigError> {
         let method = env::var("VAULT_AUTH_METHOD")
             .unwrap_or_else(|_| String::from("Token"));
 
-        let auth_method: Arc<dyn AuthMethod> = match method.as_str() {
+        let auth_method: Arc<RwLock<dyn AuthMethod>> = match method.as_str() {
             "Token" => {
                 match env::var("VAULT_TOKEN") {
-                    Ok(token) => Arc::new(TokenAuth::new(token)),
+                    Ok(token) => Arc::new(RwLock::new(TokenAuth::new(token))),
                     Err(_) => return Err(ConfigError::MissingToken)
                 }
             }
@@ -61,7 +60,7 @@ impl VaultConfig {
                 let sa_token_path = env::var("VAULT_KUBERNETES_TOKEN_PATH").ok();
                 let auth_mount_path = env::var("VAULT_AUTH_MOUNT_PATH").ok();
                 match KubernetesAuth::new(auth_mount_path, sa_token_path) {
-                    Ok(kAuth) => Arc::new(kAuth),
+                    Ok(k_auth) => Arc::new(RwLock::new(k_auth)),
                     Err(err) => return Err(ConfigError::KubernetesAuthError(err))
                 }
             }
@@ -76,20 +75,19 @@ impl VaultConfig {
 
         let retry_count = Self::get_login_retry_count()?;
 
-        Ok(VaultConfig {
-            auth_method,
+        Ok((VaultConfig {
             address,
             mount_path,
             client_timeout,
             healthcheck_file_path,
             login_retry_count: retry_count,
-        })
+        }, auth_method))
     }
 
     fn get_client_timeout() -> Result<Duration, ConfigError> {
         let client_timeout_str =env::var("VAULT_CLIENT_TIMEOUT").unwrap_or(String::from("5s"));
 
-        match DurationString::from_string(client_timeout_str) {
+        match DurationString::from_string(client_timeout_str.clone()) {
             Ok(timeout) => Ok(Duration::from(timeout)),
             Err(err) => Err(ConfigError::InvalidTimeoutDuration(client_timeout_str, err))
         }

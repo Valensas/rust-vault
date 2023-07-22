@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::{sync::Arc, error::Error};
+use tokio::sync::RwLock;
 
 use crate::auth::method::AuthMethod;
 use async_trait::async_trait;
@@ -21,8 +22,8 @@ impl TokenAuth {
 
 #[async_trait]
 impl AuthMethod for TokenAuth {
-    async fn authenticate(&self, client: Arc<VaultClient>) -> Result<AuthResult, Box<dyn std::error::Error>> {
-        client.set_token(&self.token);
-        Ok(AuthResult::token(self.token))
+    async fn authenticate(&self, client: Arc<RwLock<VaultClient>>) -> Result<AuthResult, Box<dyn Error>> {
+        client.write().await.set_token(&self.token);
+        Ok(AuthResult::token(self.token.clone()))
     }
 }
