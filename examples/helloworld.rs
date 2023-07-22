@@ -14,19 +14,18 @@ struct MySpecialToken {
 async fn main() {
     dotenv::dotenv().ok();
     // During construction, service tries create a client and connect to vault server
-    let trial_for_connect = VaultService::default().await;
-    let (vault_service, auth_method) = match trial_for_connect {
+    let trial_for_connection = VaultService::default().await;
+    let (vault_service, auth_method) = match trial_for_connection {
         Ok(connected_to_vault) => {
             (Arc::new(RwLock::new(connected_to_vault.0)), connected_to_vault.1)
         },
         Err(err) => {
-            panic!("{}", &*err)
+            panic!("{}", err)
         }
     };
     
     // If the auth info indicates that the token is renewable, begin renewing cycle
-    let vault_service_ptr = Arc::clone(&vault_service);
-    let token_renewal_handlers = match vault_service_ptr.start_token_renewal(auth_method) {
+    let token_renewal_handlers = match vault_service.start_token_renewal(auth_method) {
         Ok(handler) => {
             handler
         },

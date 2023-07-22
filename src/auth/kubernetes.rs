@@ -17,6 +17,7 @@ use super::method::AuthResult;
 #[derive(Serialize, Deserialize)]
 struct NameUUID {
     name: String,
+    #[serde(rename = "uid")]
     uuid: String
 }
 
@@ -61,8 +62,10 @@ impl KubernetesAuth {
             .get(1)
             .unwrap();
 
-        let decoded_k8_infos = base64::engine::GeneralPurpose::new(&base64::alphabet::URL_SAFE, base64::engine::general_purpose::PAD)
-            .decode(encoded_k8_infos)?;
+        let mut decoded_k8_infos: Vec<u8> = Vec::new();
+        
+        base64::engine::GeneralPurpose::new(&base64::alphabet::URL_SAFE, base64::engine::general_purpose::NO_PAD)
+            .decode_vec(encoded_k8_infos.as_bytes(), &mut decoded_k8_infos)?;
 
         let json_k8_infos = String::from_utf8(decoded_k8_infos)?;
 
