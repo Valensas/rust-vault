@@ -1,15 +1,14 @@
 use crate::auth::method::AuthMethod;
-use async_trait::async_trait;
-use base64::Engine;
+
+use std::{error::Error, sync::Arc, fs};
 use serde::{Deserialize, Serialize};
-use vaultrs::client::Client;
-use std::error::Error;
-use std::sync::Arc;
+use async_trait::async_trait;
 use tokio::sync::RwLock;
-use std::fs;
+use base64::Engine;
 use vaultrs::{
     auth::kubernetes,
-    client::VaultClient
+    client::VaultClient,
+    client::Client
 };
 
 use super::method::AuthResult;

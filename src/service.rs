@@ -1,19 +1,15 @@
 use crate::auth::method::{AuthResult, AuthMethod};
 use crate::config::VaultConfig;
+
 use async_trait::async_trait;
 use futures::executor::block_on;
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
-use std::error::{self, Error};
-use std::sync::Arc;
-use tokio::sync::mpsc::Receiver;
-use tokio::sync::{mpsc, mpsc::Sender};
-use tokio::task::JoinHandle;
-use vaultrs::api::kv2::responses::SecretVersionMetadata;
-use vaultrs::client::VaultClientSettingsBuilder;
+use std::{error::{self, Error}, sync::Arc};
+use tokio::{sync::{RwLock, mpsc::{Receiver, Sender, channel}}, task::JoinHandle};
 use vaultrs::{
-    client::{Client, VaultClient},
+    client::{Client, VaultClient, VaultClientSettingsBuilder},
     kv2,
+    api::kv2::responses::SecretVersionMetadata
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -196,7 +192,7 @@ impl TokenRenewable for Arc<RwLock<VaultService>> {
             if !auth_info.renewable {
                 return Ok(None);
             }
-            let (sender, receiver) = mpsc::channel::<()>(1);
+            let (sender, receiver) = channel::<()>(1);
             let handler = self.start_token_renew_loop(auth_info.lease_duration, sender, receiver, auth_method);
             Ok(Some(handler))
         } else {

@@ -1,13 +1,13 @@
 use async_trait::async_trait;
-use std::{
-    error::Error,
-    fmt::Debug,
-    sync::Arc,
-};
 use tokio::sync::RwLock;
 use vaultrs::{
     api::AuthInfo,
     client::VaultClient
+};
+use std::{
+    error::Error,
+    fmt::Debug,
+    sync::Arc,
 };
 
 #[derive(Debug)]

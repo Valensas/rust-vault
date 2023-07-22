@@ -1,9 +1,9 @@
-use std::{sync::Arc, error::Error};
-use tokio::sync::RwLock;
-
 use crate::auth::method::AuthMethod;
-use async_trait::async_trait;
+
 use vaultrs::client::{VaultClient, Client};
+use std::{sync::Arc, error::Error};
+use async_trait::async_trait;
+use tokio::sync::RwLock;
 
 use super::method::AuthResult;
 

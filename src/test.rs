@@ -1,13 +1,12 @@
 #![cfg(test)]
 
-use std::{thread, time::Duration};
+use crate::vault::{vault_config::VaultConfig, vault_service::VaultService};
 
 use rustify::errors::ClientError as RustifyClientError;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use std::{thread, time::Duration};
 use vaultrs::error::ClientError;
-
-use crate::vault::{vault_config::VaultConfig, vault_service::VaultService};
+use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 struct TestData {

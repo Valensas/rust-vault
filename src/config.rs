@@ -1,13 +1,8 @@
 use crate::auth::method::AuthMethod;
+
 use duration_string::DurationString;
-use std::env;
-use std::error;
-use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
-use std::num::ParseIntError;
-use std::sync::Arc;
+use std::{env, error::Error, fmt::{Debug, Display, Formatter}, num::ParseIntError, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
-use std::time::Duration;
 
 use crate::auth::kubernetes::KubernetesAuth;
 use crate::auth::token::TokenAuth;
@@ -33,7 +28,7 @@ impl Display for ConfigError {
     }
 }
 
-impl error::Error for ConfigError {}
+impl Error for ConfigError {}
 
 #[derive(Clone, Debug)]
 pub struct VaultConfig {
@@ -102,7 +97,4 @@ impl VaultConfig {
             Err(err) => Err(ConfigError::InvalidLoginRetryCount(retry_count_str, err))
         }
     }
-
-
-
 }
