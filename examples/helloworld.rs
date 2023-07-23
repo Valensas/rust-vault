@@ -12,9 +12,13 @@ struct MySpecialToken {
 
 #[tokio::main]
 async fn main() {
-    dotenv::dotenv().ok();
+    std::env::set_var("VAULT_ADDR", "http://127.0.0.1:8200");
+    std::env::set_var("VAULT_DEV_ROOT_TOKEN_ID", "vault_token");
+    std::env::set_var("VAULT_TOKEN", "vault_token");
+    std::env::set_var("VAULT_AUTH_METHOD", "Token");
+
     // During construction, service tries create a client and connect to vault server
-    let trial_for_connection = VaultService::default().await;
+    let trial_for_connection = VaultService::from_env().await;
     let (vault_service, auth_method) = match trial_for_connection {
         Ok(connected_to_vault) => {
             (Arc::new(RwLock::new(connected_to_vault.0)), connected_to_vault.1)

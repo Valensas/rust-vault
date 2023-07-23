@@ -33,7 +33,7 @@ impl std::fmt::Debug for VaultService {
 }
 
 impl VaultService {
-    pub async fn default() -> Result<(Self, Arc<RwLock<dyn AuthMethod>>), Box<dyn error::Error>> {
+    pub async fn from_env() -> Result<(Self, Arc<RwLock<dyn AuthMethod>>), Box<dyn error::Error>> {
         let (config, auth_method) = VaultConfig::load_env()?;
         let auth = Arc::clone(&auth_method);
         Self::new(config, auth).await.map(|ok| (ok, auth_method))
