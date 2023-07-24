@@ -221,9 +221,8 @@ impl TokenRenewable for Arc<RwLock<VaultService>> {
                     let mut interval = tokio::time::interval(time);
                     loop {
                         let auth_method_lock = auth_method.read().await;
-                        let client = &service.read().await.client;
                         interval.tick().await;
-                        if let Ok(()) = receiver.try_recv() {
+                        if let Some(_) = receiver.recv().await {
                             break;
                         }
                         let mut renew_token_trial = false;
@@ -240,6 +239,9 @@ impl TokenRenewable for Arc<RwLock<VaultService>> {
                             };
                         };
                         if !renew_token_trial {
+                            let lock = &*service.read().await;
+                            let client = &lock.client;
+                            drop(lock);
                             if let Err(err) = auth_method_lock.authenticate(client.clone()).await {
                                 log::error!("{}", err);
                             };
