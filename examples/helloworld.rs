@@ -2,7 +2,7 @@ use std::sync::{Arc};
 
 use serde::{Serialize, Deserialize};
 use tokio::{signal::unix::{signal, SignalKind}, select, sync::RwLock};
-use valensas_vault::{service::{VaultService, TokenRenewable}, config::VaultConfig, auth::{token::TokenAuth, self, method::AuthMethod}};
+use valensas_vault::{service::{VaultService, TokenRenewable}, config::VaultConfig, auth::{token::TokenAuth, method::AuthMethod}};
 
 #[derive(Serialize, Deserialize, Clone)]
 struct MySpecialToken {
@@ -10,10 +10,11 @@ struct MySpecialToken {
 }
 
 /// Manually configure Vault service
+#[allow(dead_code)]
 async fn manual_config() -> (Arc<RwLock<VaultService>>, Arc<RwLock<dyn AuthMethod>>) {
     let config = VaultConfig {
         address: "http://localhost:8200".to_string(),
-        mount_path: "asd".to_string(),
+        mount_path: "secret".to_string(),
         client_timeout: std::time::Duration::from_secs(10),
         healthcheck_file_path: "/healthcheck".to_string(),
         login_retry_count: 10,

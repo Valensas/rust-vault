@@ -30,7 +30,16 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    services:
+      vault:
+        image: vault:1.13.3
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: my-super-secret-token
+    env:
+      VAULT_ADDR: http://localhost:8200
+      VAULT_AUTH_METHOD: Token
+      VAULT_TOKEN: my-super-secret-token
     steps:
       - uses: actions/checkout@v3
       - name: Run tests
-        run: cargo test --verbose --no-run --lib
+        run: cargo test --lib
