@@ -9,20 +9,6 @@ struct MySpecialToken {
     special_data: String
 }
 
-/// Manually configure Vault service
-#[allow(dead_code)]
-async fn manual_config() -> (Arc<RwLock<VaultService>>, Arc<RwLock<dyn AuthMethod>>) {
-    let config = VaultConfig {
-        address: "http://localhost:8200".to_string(),
-        mount_path: "secret".to_string(),
-        client_timeout: std::time::Duration::from_secs(10),
-        healthcheck_file_path: "/healthcheck".to_string(),
-        login_retry_count: 10,
-    };
-    let auth_method: Arc<RwLock<dyn AuthMethod>> = Arc::new(RwLock::new(TokenAuth::new("some_token".to_string())));
-    (VaultService::new(config, Arc::clone(&auth_method)).await.unwrap(), auth_method)
-}
-
 /// Configure Vault service from environment variables
 async fn env_config() -> (Arc<RwLock<VaultService>>, Arc<RwLock<dyn AuthMethod>>) {
     std::env::set_var("VAULT_ADDR", "http://127.0.0.1:8200");
