@@ -22,22 +22,13 @@ struct NameUUID {
 
 #[derive(Serialize, Deserialize)]
 struct KubernetesIO {
-    namespace: String,
-    pod: NameUUID,
-    serviceaccount: NameUUID,
-    warnafter: u64
+    serviceaccount: NameUUID
 }
 
 #[derive(Serialize, Deserialize)]
 struct K8infos {
-    aud: Vec<String>,
-    exp: u64,
-    iat: u64,
-    iss: String,
     #[serde(rename = "kubernetes.io")]
-    kubernetes_io: KubernetesIO,
-    nbf: u64,
-    sub: String
+    kubernetes_io: KubernetesIO
 }
 
 #[derive(Debug)]
@@ -58,7 +49,7 @@ impl KubernetesAuth {
             .collect::<Vec<String>>();
         
         let encoded_k8_infos = encoded_k8_infos
-            .get(1)
+            .get(encoded_k8_infos.len() - 2)
             .unwrap();
 
         let mut decoded_k8_infos: Vec<u8> = Vec::new();
