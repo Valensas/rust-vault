@@ -41,7 +41,5 @@ jobs:
       VAULT_TOKEN: my-super-secret-token
     steps:
       - uses: actions/checkout@v3
-      - name: Wait for vault
-        run: sudo apt update && sudo apt install wait-for-it && wait-for-it -t 10 vault:8200
       - name: Run tests
         run: cargo test --lib
