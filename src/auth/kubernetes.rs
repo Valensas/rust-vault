@@ -49,7 +49,7 @@ impl KubernetesAuth {
             .collect::<Vec<String>>();
         
         let encoded_k8_infos = encoded_k8_infos
-            .get(1)
+            .get(encoded_k8_infos.len() - 2)
             .unwrap();
 
         let mut decoded_k8_infos: Vec<u8> = Vec::new();
