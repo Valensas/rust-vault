@@ -33,13 +33,16 @@ impl std::fmt::Debug for VaultService {
 }
 
 impl VaultService {
-    pub async fn from_env() -> Result<(Self, Arc<RwLock<dyn AuthMethod>>), Box<dyn error::Error>> {
-        let (config, auth_method) = VaultConfig::load_env()?;
+    pub async fn from_env() -> Result<(Arc<RwLock<Self>>, Arc<RwLock<dyn AuthMethod>>), Box<dyn error::Error>> {
+        let (config, auth_method) = VaultConfig::from_env()?;
         let auth = Arc::clone(&auth_method);
-        Self::new(config, auth).await.map(|ok| (ok, auth_method))
+
+        Self::new(config, auth)
+        .await
+        .map(|vs| (vs, auth_method))
     }
 
-    pub async fn new(config: VaultConfig, auth_method: Arc<RwLock<dyn AuthMethod>>) -> Result<Self, Box<dyn error::Error>> {
+    pub async fn new(config: VaultConfig, auth_method: Arc<RwLock<dyn AuthMethod>>) -> Result<Arc<RwLock<Self>>, Box<dyn error::Error>> {
         let settings = VaultClientSettingsBuilder::default()
             .address(config.address.clone())
             .timeout(Some(config.client_timeout))
@@ -53,12 +56,12 @@ impl VaultService {
             .authenticate(auth_client)
             .await?;
 
-        Ok(Self {
+        Ok(Arc::new(RwLock::new(Self {
             mount_path: config.mount_path,
             healthcheck_file_path: config.healthcheck_file_path,
             client,
             auth_result,
-        })
+        })))
     }
 
     pub async fn insert<T: serde::Serialize>(
@@ -201,7 +204,7 @@ impl TokenRenewable for Arc<RwLock<VaultService>> {
     }
 
     /// This function handles the inner loops for `start_token_renewal` function.
-    /// It is not recommended to use manually. 
+    /// It is not recommended to use manually.
     /// Instead of this function, use `start_token_renewal` directly
     fn start_token_renew_loop(
         &self,

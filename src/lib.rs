@@ -8,27 +8,61 @@
 //! valensas-vault = "0.2.0"
 //! ```
 //!
+//! ## Features
+//!
+//! Only operations on a KV v2 secret engine are supported. Authentication can be performed using
+//! token or Kubernetes authentication.
+//!
 //! ## Usage
-//! You should define following environment variables to configure Vault.
-//!```yaml
-//! VAULT_AUTH_METHOD: Kubernetes
-//! VAULT_ADDR: "http://localhost:8200"
-//! VAULT_MOUNT_PATH: secret
+//!
+//! ### Manual configuration
+//!
+//! Create a VaultConfig and AuthMethod to your needs:
+//!
+//! ```rust
+//!  let config = VaultConfig {
+//!      address: "http://localhost:8200".to_string(),
+//!      mount_path: "asd".to_string(),
+//!      client_timeout: std::time::Duration::from_secs(10),
+//!      healthcheck_file_path: "/healthcheck".to_string(),
+//!      login_retry_count: 10,
+//!  };
+//!  let auth_method: Arc<RwLock<dyn AuthMethod>> = Arc::new(RwLock::new(TokenAuth::new("some_token".to_string())));
 //! ```
 //!
-//! For Kubernetes Configuration:
+//! Create the VaultService from the config and auth method:
+//!
+//! ```rust
+//! let vault_service = VaultService::new(config, Arc::clone(&auth_method)).await.unwrap();
+//! ```
+//!
+//! ### Environment configuration
+//!
+//! The following environment variables are supported to configure the VaultService:
+//!
+//!```yaml
+//! VAULT_ADDR: "http://localhost:8200"
+//! VAULT_MOUNT_PATH: secret
+//! VAULT_HEALTH_CHECK_FILE: healthcheck_file
+//! VAULT_CLIENT_TIMEOUT: 5s
+//! VAULT_LOGIN_RETRY_COUNT: 5
+//! ```
+//!
+//! For Kubernetes Authentication:
 //! ```yaml
 //! VAULT_AUTH_METHOD: Kubernetes
 //! VAULT_KUBERNETES_TOKEN_PATH: /var/run/secrets/kubernetes.io/serviceaccount/token
 //! ```
 //!
-//! For Token Configuration:
+//! For Token Authentication:
 //! ```yaml
 //! VAULT_AUTH_METHOD: Token
 //! VAULT_TOKEN: vault_token
 //! ```
 //! Given values are default values of the variables. Make sure to replace the variable with your own variables for Vault configuration.
-//! VAULT_AUTH_METHOD value can be either Token or Kubernetes.
+//!
+//! ### Sample ussage
+//!
 //! ```rust
 //! use std::time::Duration;
 //! use valensas_vault::service::{HealthCheckData, VaultService};
@@ -41,11 +75,6 @@
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     std::env::set_var("VAULT_ADDR", "http://127.0.0.1:8200");
-//!     std::env::set_var("VAULT_DEV_ROOT_TOKEN_ID", "vault_token");
-//!     std::env::set_var("VAULT_TOKEN", "vault_token");
-//!     std::env::set_var("VAULT_AUTH_METHOD", "Token");
-//!     // Initialize the Vault service
 //!     let (vault_service, _auth_method) = VaultService::from_env().await.unwrap();
 //!
 //!     // Write a secret to Vault
@@ -72,10 +101,6 @@
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     std::env::set_var("VAULT_ADDR", "http://127.0.0.1:8200");
-//!     std::env::set_var("VAULT_DEV_ROOT_TOKEN_ID", "vault_token");
-//!     std::env::set_var("VAULT_TOKEN", "vault_token");
-//!     std::env::set_var("VAULT_AUTH_METHOD", "Token");
 //!     // Initialize the Vault service
 //!     let (vault_service, auth_method) = VaultService::from_env().await.unwrap();
 //!
