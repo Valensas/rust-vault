@@ -1,8 +1,8 @@
-use std::sync::{Arc};
+use std::sync::Arc;
 
 use serde::{Serialize, Deserialize};
 use tokio::{signal::unix::{signal, SignalKind}, select, sync::RwLock};
-use valensas_vault::{service::{VaultService, TokenRenewable}, config::VaultConfig, auth::{token::TokenAuth, method::AuthMethod}};
+use valensas_vault::{service::{VaultService, TokenRenewable}, auth::method::AuthMethod};
 
 #[derive(Serialize, Deserialize, Clone)]
 struct MySpecialToken {

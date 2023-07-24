@@ -22,22 +22,13 @@ struct NameUUID {
 
 #[derive(Serialize, Deserialize)]
 struct KubernetesIO {
-    namespace: String,
-    pod: NameUUID,
-    serviceaccount: NameUUID,
-    warnafter: u64
+    serviceaccount: NameUUID
 }
 
 #[derive(Serialize, Deserialize)]
 struct K8infos {
-    aud: Vec<String>,
-    exp: u64,
-    iat: u64,
-    iss: String,
     #[serde(rename = "kubernetes.io")]
-    kubernetes_io: KubernetesIO,
-    nbf: u64,
-    sub: String
+    kubernetes_io: KubernetesIO
 }
 
 #[derive(Debug)]
