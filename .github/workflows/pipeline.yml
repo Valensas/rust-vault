@@ -30,7 +30,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    container: ubuntu
+    container: rust:1.71.0
     services:
       vault:
         image: vault:1.13.3
