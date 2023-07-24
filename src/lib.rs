@@ -5,47 +5,48 @@
 //! Add the following to your `Cargo.toml` file:
 //! ```toml
 //! [dependencies]
-//! valensas_vault = "0.1.5"
+//! valensas-vault = "0.2.0"
 //! ```
 //!
 //! ## Usage
 //! You should define following environment variables to configure Vault.
 //!```yaml
+//! VAULT_AUTH_METHOD: Kubernetes
 //! VAULT_ADDR: "http://localhost:8200"
 //! VAULT_MOUNT_PATH: secret
-//! VAULT_CLIENT_TIMEOUT: 5s
-//! VAULT_HEALTH_CHECK_FILE: healthcheck_file
-//! VAULT_RETRY_COUNT: 5
 //! ```
 //!
 //! For Kubernetes Configuration:
 //! ```yaml
 //! VAULT_AUTH_METHOD: Kubernetes
-//! VAULT_KUBERNETES_ROLE_NAME: client
 //! VAULT_KUBERNETES_TOKEN_PATH: /var/run/secrets/kubernetes.io/serviceaccount/token
 //! ```
 //!
 //! For Token Configuration:
 //! ```yaml
 //! VAULT_AUTH_METHOD: Token
-//! VAULT_TOKEN: token
+//! VAULT_TOKEN: vault_token
 //! ```
 //! Given values are default values of the variables. Make sure to replace the variable with your own variables for Vault configuration.
 //! VAULT_AUTH_METHOD value can be either Token or Kubernetes.
 //! ```rust
 //! use std::time::Duration;
-//! use valensas_vault::vault::vault_service::{HealthCheckData, VaultService};
+//! use valensas_vault::service::{HealthCheckData, VaultService};
 //! use serde::{Deserialize, Serialize};
-//! 
+//!
 //! #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 //! struct TestData {
 //!     name: String,
 //! }
-//! 
+//!
 //! #[tokio::main]
 //! async fn main() {
+//!     std::env::set_var("VAULT_ADDR", "http://127.0.0.1:8200");
+//!     std::env::set_var("VAULT_DEV_ROOT_TOKEN_ID", "vault_token");
+//!     std::env::set_var("VAULT_TOKEN", "vault_token");
+//!     std::env::set_var("VAULT_AUTH_METHOD", "Token");
 //!     // Initialize the Vault service
-//!     let vault_service = VaultService::new().await.unwrap();
+//!     let (vault_service, _auth_method) = VaultService::from_env().await.unwrap();
 //!
 //!     // Write a secret to Vault
 //!     let secret_key = "my-new-secret-key";
@@ -65,28 +66,35 @@
 //!
 //!```rust
 //! use std::time::Duration;
-//! use valensas_vault::vault::vault_service::{token_renewal, token_renewal_abortion, VaultService};
-//! use std::sync::RwLock;
+//! use valensas_vault::service::{VaultService, TokenRenewable};
+//! use tokio::sync::RwLock;
 //! use std::sync::Arc;
-//! 
+//!
 //! #[tokio::main]
 //! async fn main() {
+//!     std::env::set_var("VAULT_ADDR", "http://127.0.0.1:8200");
+//!     std::env::set_var("VAULT_DEV_ROOT_TOKEN_ID", "vault_token");
+//!     std::env::set_var("VAULT_TOKEN", "vault_token");
+//!     std::env::set_var("VAULT_AUTH_METHOD", "Token");
 //!     // Initialize the Vault service
-//!     let vault_service = VaultService::new().await.unwrap();
-//! 
+//!     let (vault_service, auth_method) = VaultService::from_env().await.unwrap();
+//!
 //!     let vault_service = Arc::new(RwLock::new(vault_service));
-//! 
+//!
 //!     // Start token renewal
-//!     let handler = token_renewal(vault_service);
-//! 
+//!     let handler = vault_service.start_token_renewal(auth_method);
+//!
 //!     // Perform some operations...
 //!     // ...
-//! 
+//!
 //!     // Stop token renewal
 //!     // handler may be none in case if auth method is Kubernetes
-//!     if let Some((token_renewal_handle, sender)) = handler {
-//!         token_renewal_abortion((token_renewal_handle, sender));
+//!     if let Ok(Some(token_renewal_handler)) = handler {
+//!         vault_service.stop_token_renew_loop(token_renewal_handler).await;
 //!     }
 //! }
 //! ```
-pub mod vault;
+pub mod config;
+pub mod service;
+pub mod auth;
+mod test;
