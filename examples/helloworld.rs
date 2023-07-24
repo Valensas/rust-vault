@@ -1,33 +1,39 @@
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::sync::{Arc};
 
 use serde::{Serialize, Deserialize};
-use tokio::{signal::unix::{signal, SignalKind}, select};
-use valensas_vault::service::{VaultService, TokenRenewable};
+use tokio::{signal::unix::{signal, SignalKind}, select, sync::RwLock};
+use valensas_vault::{service::{VaultService, TokenRenewable}, config::VaultConfig, auth::{token::TokenAuth, self, method::AuthMethod}};
 
 #[derive(Serialize, Deserialize, Clone)]
 struct MySpecialToken {
-    special_data: String 
+    special_data: String
+}
+
+/// Manually configure Vault service
+async fn manual_config() -> (Arc<RwLock<VaultService>>, Arc<RwLock<dyn AuthMethod>>) {
+    let config = VaultConfig {
+        address: "http://localhost:8200".to_string(),
+        mount_path: "asd".to_string(),
+        client_timeout: std::time::Duration::from_secs(10),
+        healthcheck_file_path: "/healthcheck".to_string(),
+        login_retry_count: 10,
+    };
+    let auth_method: Arc<RwLock<dyn AuthMethod>> = Arc::new(RwLock::new(TokenAuth::new("some_token".to_string())));
+    (VaultService::new(config, Arc::clone(&auth_method)).await.unwrap(), auth_method)
+}
+
+/// Configure Vault service from environment variables
+async fn env_config() -> (Arc<RwLock<VaultService>>, Arc<RwLock<dyn AuthMethod>>) {
+    std::env::set_var("VAULT_ADDR", "http://127.0.0.1:8200");
+    std::env::set_var("VAULT_TOKEN", "vault_token");
+    std::env::set_var("VAULT_AUTH_METHOD", "Token");
+    VaultService::from_env().await.unwrap()
 }
 
 #[tokio::main]
 async fn main() {
-    std::env::set_var("VAULT_ADDR", "http://127.0.0.1:8200");
-    std::env::set_var("VAULT_DEV_ROOT_TOKEN_ID", "vault_token");
-    std::env::set_var("VAULT_TOKEN", "vault_token");
-    std::env::set_var("VAULT_AUTH_METHOD", "Token");
+    let (vault_service, auth_method) = env_config().await;
 
-    // During construction, service tries create a client and connect to vault server
-    let trial_for_connection = VaultService::from_env().await;
-    let (vault_service, auth_method) = match trial_for_connection {
-        Ok(connected_to_vault) => {
-            (Arc::new(RwLock::new(connected_to_vault.0)), connected_to_vault.1)
-        },
-        Err(err) => {
-            panic!("{}", err)
-        }
-    };
-    
     // If the auth info indicates that the token is renewable, begin renewing cycle
     let token_renewal_handlers = match vault_service.start_token_renewal(auth_method) {
         Ok(handler) => {
@@ -44,7 +50,7 @@ async fn main() {
         let my_data = MySpecialToken {
             special_data: "incredibly secret data".to_string()
         };
-        
+
         vault_service.read().await.insert(
             "MySuperToken",
             my_data.clone()

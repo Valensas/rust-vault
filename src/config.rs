@@ -40,7 +40,7 @@ pub struct VaultConfig {
 }
 
 impl VaultConfig {
-    pub fn load_env() -> Result<(Self, Arc<RwLock<dyn AuthMethod>>), ConfigError> {
+    pub fn from_env() -> Result<(Self, Arc<RwLock<dyn AuthMethod>>), ConfigError> {
         let method = env::var("VAULT_AUTH_METHOD")
             .unwrap_or_else(|_| String::from("Token"));
 
