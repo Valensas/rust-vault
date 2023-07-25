@@ -18,8 +18,5 @@ async-trait = "0.1.70"
 duration-string = "0.3.0"
 base64 = "0.21.2"
 
-[dev.dependencies]
-valensas-rocket = "0.1.2"
-
 [[example]]
 name = "helloworld"
