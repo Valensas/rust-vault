@@ -216,6 +216,7 @@ impl TokenRenewable for Arc<RwLock<VaultService>> {
         let service = Arc::clone(self);
         (tokio::spawn(async move {
             let time = std::time::Duration::new(lease_duration - 5, 0);
+            log::debug!("lease duration: {}", lease_duration);
             let mut interval = tokio::time::interval(time);
             loop {
                 let auth_method_lock = auth_method.read().await;
