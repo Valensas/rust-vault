@@ -40,7 +40,7 @@ pub struct KubernetesAuth {
 
 impl KubernetesAuth {
     pub fn new(mount: Option<String>, sa_token_path: Option<String>) -> Result<Self, Box<dyn Error>> {
-        let token = fs::read_to_string(sa_token_path.unwrap_or("/var/run/kubernetes.io/serviceaccount/token".to_string()))?;
+        let token = fs::read_to_string(sa_token_path.unwrap_or("/var/run/secrets/kubernetes.io/serviceaccount/token".to_string()))?;
         
         let encoded_k8_infos = token.split('.')
             .collect::<Vec<&str>>()
