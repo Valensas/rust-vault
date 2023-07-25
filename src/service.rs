@@ -214,39 +214,36 @@ impl TokenRenewable for Arc<RwLock<VaultService>> {
         auth_method: Arc<RwLock<dyn AuthMethod>>
     ) -> (JoinHandle<()>, Sender<()>) {
         let service = Arc::clone(self);
-        (tokio::task::spawn_blocking( move || {
-            tokio::runtime::Runtime::new().unwrap()
-                .block_on(async {
-                    let time = std::time::Duration::new(lease_duration - 5, 0);
-                    let mut interval = tokio::time::interval(time);
-                    loop {
-                        let auth_method_lock = auth_method.read().await;
-                        interval.tick().await;
-                        if receiver.recv().await.is_some() {
+        (tokio::spawn(async move {
+            let time = std::time::Duration::new(lease_duration - 5, 0);
+            let mut interval = tokio::time::interval(time);
+            loop {
+                let auth_method_lock = auth_method.read().await;
+                interval.tick().await;
+                if receiver.recv().await.is_some() {
+                    break;
+                }
+                let mut renew_token_trial = false;
+                for _ in 0..5 {
+                    let mut lock = service.write().await;
+                    match lock.renew_token().await {
+                        Ok(_) => {
+                            renew_token_trial = true;
                             break;
+                        },
+                        Err(err) => {
+                            log::error!("retring to renew token: {}", err);
                         }
-                        let mut renew_token_trial = false;
-                        for _ in 0..5 {
-                            let mut lock = service.write().await;
-                            match lock.renew_token().await {
-                                Ok(_) => {
-                                    renew_token_trial = true;
-                                    break;
-                                },
-                                Err(err) => {
-                                    log::error!("retring to renew token: {}", err);
-                                }
-                            };
-                        };
-                        if !renew_token_trial {
-                            let lock = &*service.read().await;
-                            let client = &lock.client;
-                            if let Err(err) = auth_method_lock.authenticate(client.clone()).await {
-                                log::error!("{}", err);
-                            };
-                        }
-                    }
-                })
+                    };
+                };
+                if !renew_token_trial {
+                    let lock = &*service.read().await;
+                    let client = &lock.client;
+                    if let Err(err) = auth_method_lock.authenticate(client.clone()).await {
+                        log::error!("{}", err);
+                    };
+                }
+            }
         }), sender)
     }
 
