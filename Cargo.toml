@@ -1,6 +1,6 @@
 [package]
 name = "valensas-vault"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 description = "A library that provides a convenient interface for interacting with Vault"
 license = "MIT"

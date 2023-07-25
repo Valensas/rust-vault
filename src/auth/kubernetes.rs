@@ -72,7 +72,7 @@ impl KubernetesAuth {
 #[async_trait]
 impl AuthMethod for KubernetesAuth {
     async fn authenticate(&self, client: Arc<RwLock<VaultClient>>) -> Result<AuthResult, Box<dyn Error>> {
-        let client_infos = client.clone();
+        let client_infos = Arc::clone(&client);
         let mount = self.mount.clone();
         let role = self.role.clone();
         let token = self.token.clone();
